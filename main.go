@@ -1,0 +1,15 @@
+package main
+
+import "log"
+
+func main() {
+	gameOfLife, err := NewGame("Conway's Game of Life", 600, 600)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = gameOfLife.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
