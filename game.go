@@ -3,26 +3,31 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/veandco/go-sdl2/sdl"
 )
 
 // Game Holds the configs and state of the Conway's Game of Life.
 type Game struct {
-	running  bool
-	title    string
-	width    int32
-	height   int32
-	window   *sdl.Window
-	renderer *sdl.Renderer
+	running            bool
+	title              string
+	width              int32
+	height             int32
+	window             *sdl.Window
+	renderer           *sdl.Renderer
+	colorBuffer        []uint32
+	colorBufferTexture *sdl.Texture
 }
 
 // NewGame Returns a new initialized game.
 func NewGame(title string, width, height int32) (*Game, error) {
 	game := &Game{
-		title:  title,
-		width:  width,
-		height: height,
+		running:     false,
+		title:       title,
+		width:       width,
+		height:      height,
+		colorBuffer: make([]uint32, width*height),
 	}
 	err := game.init()
 	if err != nil {
@@ -68,6 +73,12 @@ func (g *Game) init() error {
 	}
 	g.renderer = renderer
 
+	texture, err := renderer.CreateTexture(sdl.PIXELFORMAT_RGBA8888, sdl.TEXTUREACCESS_STREAMING, g.width, g.height)
+	if err != nil {
+		return fmt.Errorf("failed to create texture: %w", err)
+	}
+	g.colorBufferTexture = texture
+
 	return nil
 }
 
@@ -99,5 +110,11 @@ func (g *Game) update() {}
 
 // render the game state to screen.
 func (g *Game) render() {
+	err := g.renderColorBuffer()
+	if err != nil {
+		log.Println(err)
+	}
+
+	g.clearColorBuffer(0xFF0000FF)
 	g.renderer.Present()
 }
