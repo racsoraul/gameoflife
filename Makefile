@@ -1,5 +1,8 @@
-run: clean build
-	bin/gameoflife
+run_dev: clean build_dev
+	bin/gameoflife_dev
+
+build_dev:
+	go build -race -o bin/gameoflife_dev ./
 
 build:
 	go build -o bin/gameoflife ./
@@ -7,4 +10,4 @@ build:
 clean:
 	rm -f bin/*
 
-PHONY: build clean
+PHONY: build_dev clean

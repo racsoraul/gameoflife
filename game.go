@@ -110,11 +110,12 @@ func (g *Game) update() {}
 
 // render the game state to screen.
 func (g *Game) render() {
+	g.drawGrid(20, 0xFFFFFFFF)
 	err := g.renderColorBuffer()
 	if err != nil {
 		log.Println(err)
 	}
 
-	g.clearColorBuffer(0xFF0000FF)
+	g.clearColorBuffer(0x000000FF)
 	g.renderer.Present()
 }

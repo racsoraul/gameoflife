@@ -28,3 +28,30 @@ func (g *Game) renderColorBuffer() error {
 
 	return nil
 }
+
+// drawPixel Draws a pixel with the specified color in the colorBuffer.
+func (g *Game) drawPixel(x, y int32, color uint32) {
+	if x >= 0 && x < g.width && y >= 0 && y < g.height {
+		g.colorBuffer[(y*g.width)+x] = color
+	}
+}
+
+// drawRect Draws a rectangle and fills it in with the specified color.
+func (g *Game) drawRect(x, y, width, height int32, color uint32) {
+	for j := int32(0); j < height; j++ {
+		for i := int32(0); i < width; i++ {
+			g.drawPixel(x+i, y+j, color)
+		}
+	}
+}
+
+// drawGrid Draws a grid with cells of the specified size.
+func (g *Game) drawGrid(size int32, color uint32) {
+	for y := int32(0); y < g.height; y++ {
+		for x := int32(0); x < g.width; x++ {
+			if y%size == 0 || x%size == 0 {
+				g.drawPixel(x, y, color)
+			}
+		}
+	}
+}
