@@ -16,7 +16,7 @@ type Game struct {
 	height             int32
 	window             *sdl.Window
 	renderer           *sdl.Renderer
-	colorBuffer        []uint32
+	colorBuffer        []uint32 // Represents the current generation of cells.
 	colorBufferTexture *sdl.Texture
 	CellSize           int32
 	CellAliveColor     uint32
@@ -109,6 +109,10 @@ func (g *Game) processInput() {
 			if event.Keysym.Sym == sdl.K_ESCAPE {
 				g.running = false
 			}
+		case *sdl.MouseButtonEvent:
+			if event.Type == sdl.MOUSEBUTTONDOWN {
+				g.toggleCellState(event.X, event.Y)
+			}
 		}
 	}
 }
@@ -123,6 +127,6 @@ func (g *Game) render() {
 	if err != nil {
 		log.Println(err)
 	}
-	g.clearColorBuffer(0x000000FF)
+	//g.clearColorBuffer(0x000000FF) // TODO: Create copy to compute next gen with old gen.
 	g.renderer.Present()
 }

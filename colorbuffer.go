@@ -36,6 +36,14 @@ func (g *Game) drawPixel(x, y int32, color uint32) {
 	}
 }
 
+// getPixelColor Returns the pixel color.
+func (g *Game) getPixelColor(x, y int32) uint32 {
+	if x >= 0 && x < g.width && y >= 0 && y < g.height {
+		return g.colorBuffer[(y*g.width)+x]
+	}
+	return 0x00000000
+}
+
 // drawRect Draws a rectangle and fills it in with the specified color.
 func (g *Game) drawRect(x, y, width, height int32, color uint32) {
 	for j := int32(0); j < height; j++ {
