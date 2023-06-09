@@ -48,3 +48,41 @@ func (g *Game) toggleCellState(winX, winY int32) {
 		g.setCellState(ALIVE, x, y)
 	}
 }
+
+// getCellNeighbourStates Get the state of the eight surrounding cells.
+func (g *Game) getCellNeighbourStates(x, y int32) [8]CellState {
+	states := [8]CellState{}
+	// Left.
+	if x-1 >= 0 {
+		states[0] = g.getCellState(x-1, y)
+	}
+	// Right.
+	if x+1 < g.width/g.CellSize {
+		states[1] = g.getCellState(x+1, y)
+	}
+	// Top
+	if y-1 >= 0 {
+		states[2] = g.getCellState(x, y-1)
+	}
+	// Bottom.
+	if y+1 < g.height/g.CellSize {
+		states[3] = g.getCellState(x, y+1)
+	}
+	// Top-Left
+	if x-1 >= 0 && y-1 >= 0 {
+		states[4] = g.getCellState(x-1, y-1)
+	}
+	// Top-Right
+	if x+1 < g.width/g.CellSize && y-1 >= 0 {
+		states[5] = g.getCellState(x+1, y-1)
+	}
+	// Bottom-Left
+	if x-1 >= 0 && y+1 < g.height/g.CellSize {
+		states[6] = g.getCellState(x-1, y+1)
+	}
+	// Bottom-Right
+	if x+1 < g.width/g.CellSize && y+1 < g.height/g.CellSize {
+		states[7] = g.getCellState(x+1, y+1)
+	}
+	return states
+}
