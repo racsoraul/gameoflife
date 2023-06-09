@@ -45,12 +45,12 @@ func (g *Game) drawRect(x, y, width, height int32, color uint32) {
 	}
 }
 
-// drawGrid Draws a grid with cells of the specified size.
-func (g *Game) drawGrid(size int32, color uint32) {
+// drawGrid Draws a grid of cells with size CellSize and color GridColor.
+func (g *Game) drawGrid() {
 	for y := int32(0); y < g.height; y++ {
 		for x := int32(0); x < g.width; x++ {
-			if y%size == 0 || x%size == 0 {
-				g.drawPixel(x, y, color)
+			if y%g.CellSize == 0 || x%g.CellSize == 0 {
+				g.drawPixel(x, y, g.GridColor)
 			}
 		}
 	}

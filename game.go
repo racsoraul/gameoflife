@@ -18,16 +18,24 @@ type Game struct {
 	renderer           *sdl.Renderer
 	colorBuffer        []uint32
 	colorBufferTexture *sdl.Texture
+	CellSize           int32
+	CellAliveColor     uint32
+	CellDeadColor      uint32
+	GridColor          uint32
 }
 
 // NewGame Returns a new initialized game.
 func NewGame(title string, width, height int32) (*Game, error) {
 	game := &Game{
-		running:     false,
-		title:       title,
-		width:       width,
-		height:      height,
-		colorBuffer: make([]uint32, width*height),
+		running:        false,
+		title:          title,
+		width:          width,
+		height:         height,
+		colorBuffer:    make([]uint32, width*height),
+		CellSize:       20,
+		CellAliveColor: 0xFFFFFFFF,
+		CellDeadColor:  0x00000000,
+		GridColor:      0xFFFFFFFF,
 	}
 	err := game.init()
 	if err != nil {
@@ -110,12 +118,11 @@ func (g *Game) update() {}
 
 // render the game state to screen.
 func (g *Game) render() {
-	g.drawGrid(20, 0xFFFFFFFF)
+	g.drawGrid()
 	err := g.renderColorBuffer()
 	if err != nil {
 		log.Println(err)
 	}
-
 	g.clearColorBuffer(0x000000FF)
 	g.renderer.Present()
 }
