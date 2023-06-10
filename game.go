@@ -17,6 +17,7 @@ type Game struct {
 	window         *sdl.Window
 	renderer       *sdl.Renderer
 	frameBuffer    *FrameBuffer // Holds every generation of cells.
+	play           bool         // Acts as Play/Pause of the game.
 	CellSize       int32
 	CellAliveColor uint32
 	CellDeadColor  uint32
@@ -32,6 +33,7 @@ func NewGame(title string, width, height int32) (*Game, error) {
 		title:          title,
 		width:          width,
 		height:         height,
+		play:           true,
 		CellSize:       20,
 		CellAliveColor: 0xFFFFFFFF,
 		CellDeadColor:  0x00000000,
@@ -126,12 +128,18 @@ func (g *Game) processInput() {
 		case *sdl.QuitEvent:
 			g.running = false
 		case *sdl.KeyboardEvent:
-			if event.Keysym.Sym == sdl.K_ESCAPE {
-				g.running = false
-				continue
-			}
-			if event.Type == sdl.KEYDOWN && event.Keysym.Sym == sdl.K_g {
-				g.EnableGrid = !g.EnableGrid
+			if event.Type == sdl.KEYDOWN {
+				if event.Keysym.Sym == sdl.K_ESCAPE {
+					g.running = false
+					continue
+				}
+				if event.Keysym.Sym == sdl.K_p {
+					g.play = !g.play
+					continue
+				}
+				if event.Keysym.Sym == sdl.K_g {
+					g.EnableGrid = !g.EnableGrid
+				}
 			}
 		case *sdl.MouseButtonEvent:
 			if event.Type == sdl.MOUSEBUTTONDOWN {
@@ -143,9 +151,11 @@ func (g *Game) processInput() {
 
 // update game state.
 func (g *Game) update() {
-	for y := int32(0); y < g.width/g.CellSize; y++ {
-		for x := int32(0); x < g.height/g.CellSize; x++ {
-			g.RuleB3S23(x, y)
+	if g.play {
+		for y := int32(0); y < g.width/g.CellSize; y++ {
+			for x := int32(0); x < g.height/g.CellSize; x++ {
+				g.RuleB3S23(x, y)
+			}
 		}
 	}
 }
@@ -155,9 +165,11 @@ func (g *Game) render() {
 	if g.EnableGrid {
 		g.frameBuffer.DrawGrid()
 	}
-	err := g.frameBuffer.Render()
-	if err != nil {
-		log.Println(err)
+	if g.play {
+		err := g.frameBuffer.Render()
+		if err != nil {
+			log.Println(err)
+		}
+		g.renderer.Present()
 	}
-	g.renderer.Present()
 }
