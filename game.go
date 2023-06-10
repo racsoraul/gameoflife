@@ -54,6 +54,15 @@ func NewGame(title string, width, height int32) (*Game, error) {
 func (g *Game) Run() error {
 	g.title = fmt.Sprintf("%s [%dx%d]", g.title, g.width/g.CellSize, g.height/g.CellSize)
 	g.window.SetTitle(g.title)
+
+	posX := (g.width / g.CellSize) / 2
+	posY := (g.height / g.CellSize) / 2
+	g.frameBuffer.SetCellState(ALIVE, posX, posY, false)
+	g.frameBuffer.SetCellState(ALIVE, posX+1, posY, false)
+	g.frameBuffer.SetCellState(ALIVE, posX, posY+1, false)
+	g.frameBuffer.SetCellState(ALIVE, posX-1, posY+1, false)
+	g.frameBuffer.SetCellState(ALIVE, posX, posY+2, false)
+
 	g.running = true
 	tpf := uint64(1000 / g.FPS)
 	lastTicks := sdl.GetTicks64()
@@ -136,7 +145,7 @@ func (g *Game) processInput() {
 func (g *Game) update() {
 	for y := int32(0); y < g.width/g.CellSize; y++ {
 		for x := int32(0); x < g.height/g.CellSize; x++ {
-			// TODO: Add rules here...
+			g.RuleB3S23(x, y)
 		}
 	}
 }
