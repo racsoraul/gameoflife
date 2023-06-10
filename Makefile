@@ -4,10 +4,13 @@ run_dev: clean build_dev
 build_dev:
 	go build -race -o bin/gameoflife_dev ./
 
+run: clean build
+	bin/gameoflife
+
 build:
 	go build -o bin/gameoflife ./
 
 clean:
 	rm -f bin/*
 
-PHONY: build_dev clean
+PHONY: build_dev clean build

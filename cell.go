@@ -7,82 +7,83 @@ const (
 	ALIVE
 )
 
-// setCellState Sets the specified state for the provided cell.
-func (g *Game) setCellState(state CellState, x, y int32) {
+// SetCellState Sets the specified state for the provided cell. If next is false, it uses the current buffer.
+func (fb *FrameBuffer) SetCellState(state CellState, x, y int32, next bool) {
 	switch state {
 	case ALIVE:
-		g.drawRect(x*g.CellSize, y*g.CellSize, g.CellSize, g.CellSize, g.CellAliveColor)
+		fb.DrawRect(x*fb.g.CellSize, y*fb.g.CellSize, fb.g.CellSize, fb.g.CellSize, fb.g.CellAliveColor, next)
 	case DEAD:
-		g.drawRect(x*g.CellSize, y*g.CellSize, g.CellSize, g.CellSize, g.CellDeadColor)
+		fb.DrawRect(x*fb.g.CellSize, y*fb.g.CellSize, fb.g.CellSize, fb.g.CellSize, fb.g.CellDeadColor, next)
 	}
 }
 
-// getCellState Get cell's state.
-func (g *Game) getCellState(x, y int32) CellState {
-	pixelColor := g.getPixelColor(
-		(x*g.CellSize)+(g.CellSize/2),
-		(y*g.CellSize)+(g.CellSize/2),
+// GetCellState Get cell's state. If next is false, it uses the current buffer.
+func (fb *FrameBuffer) GetCellState(x, y int32, next bool) CellState {
+	pixelColor := fb.GetPixelColor(
+		(x*fb.g.CellSize)+(fb.g.CellSize/2),
+		(y*fb.g.CellSize)+(fb.g.CellSize/2),
+		next,
 	) // Get the color of the pixel at the center of the cell.
 	switch pixelColor {
-	case g.CellAliveColor:
+	case fb.g.CellAliveColor:
 		return ALIVE
-	case g.CellDeadColor:
+	case fb.g.CellDeadColor:
 		return DEAD
 	}
 	return DEAD
 }
 
-// getCellPosFromWindowCoords Returns cell's position located at the window's coordinates.
-func (g *Game) getCellPosFromWindowCoords(winX, winY int32) (int32, int32) {
-	return winX / g.CellSize, winY / g.CellSize
+// GetCellPosFromWindowCoords Returns cell's position from the given relative window's coordinates.
+func (fb *FrameBuffer) GetCellPosFromWindowCoords(winX, winY int32) (int32, int32) {
+	return winX / fb.g.CellSize, winY / fb.g.CellSize
 }
 
-// toggleCellState Toggles cell's state located at the window's coordinates.
-func (g *Game) toggleCellState(winX, winY int32) {
-	x, y := g.getCellPosFromWindowCoords(winX, winY)
-	cellState := g.getCellState(x, y)
+// ToggleCellState Toggles cell's state located at the window's coordinates in current color buffer.
+func (fb *FrameBuffer) ToggleCellState(winX, winY int32) {
+	x, y := fb.GetCellPosFromWindowCoords(winX, winY)
+	cellState := fb.GetCellState(x, y, false)
 	switch cellState {
 	case ALIVE:
-		g.setCellState(DEAD, x, y)
+		fb.SetCellState(DEAD, x, y, false)
 	case DEAD:
-		g.setCellState(ALIVE, x, y)
+		fb.SetCellState(ALIVE, x, y, false)
 	}
 }
 
-// getCellNeighbourStates Get the state of the eight surrounding cells.
-func (g *Game) getCellNeighbourStates(x, y int32) [8]CellState {
+// GetCellNeighbourStates Get the state of the eight surrounding cells from current color buffer.
+func (fb *FrameBuffer) GetCellNeighbourStates(x, y int32) [8]CellState {
 	states := [8]CellState{}
 	// Left.
 	if x-1 >= 0 {
-		states[0] = g.getCellState(x-1, y)
+		states[0] = fb.GetCellState(x-1, y, false)
 	}
 	// Right.
-	if x+1 < g.width/g.CellSize {
-		states[1] = g.getCellState(x+1, y)
+	if x+1 < fb.g.width/fb.g.CellSize {
+		states[1] = fb.GetCellState(x+1, y, false)
 	}
 	// Top
 	if y-1 >= 0 {
-		states[2] = g.getCellState(x, y-1)
+		states[2] = fb.GetCellState(x, y-1, false)
 	}
 	// Bottom.
-	if y+1 < g.height/g.CellSize {
-		states[3] = g.getCellState(x, y+1)
+	if y+1 < fb.g.height/fb.g.CellSize {
+		states[3] = fb.GetCellState(x, y+1, false)
 	}
 	// Top-Left
 	if x-1 >= 0 && y-1 >= 0 {
-		states[4] = g.getCellState(x-1, y-1)
+		states[4] = fb.GetCellState(x-1, y-1, false)
 	}
 	// Top-Right
-	if x+1 < g.width/g.CellSize && y-1 >= 0 {
-		states[5] = g.getCellState(x+1, y-1)
+	if x+1 < fb.g.width/fb.g.CellSize && y-1 >= 0 {
+		states[5] = fb.GetCellState(x+1, y-1, false)
 	}
 	// Bottom-Left
-	if x-1 >= 0 && y+1 < g.height/g.CellSize {
-		states[6] = g.getCellState(x-1, y+1)
+	if x-1 >= 0 && y+1 < fb.g.height/fb.g.CellSize {
+		states[6] = fb.GetCellState(x-1, y+1, false)
 	}
 	// Bottom-Right
-	if x+1 < g.width/g.CellSize && y+1 < g.height/g.CellSize {
-		states[7] = g.getCellState(x+1, y+1)
+	if x+1 < fb.g.width/fb.g.CellSize && y+1 < fb.g.height/fb.g.CellSize {
+		states[7] = fb.GetCellState(x+1, y+1, false)
 	}
 	return states
 }

@@ -10,18 +10,18 @@ import (
 
 // Game Holds the configs and state of the Conway's Game of Life.
 type Game struct {
-	running            bool
-	title              string
-	width              int32
-	height             int32
-	window             *sdl.Window
-	renderer           *sdl.Renderer
-	colorBuffer        []uint32 // Represents the current generation of cells.
-	colorBufferTexture *sdl.Texture
-	CellSize           int32
-	CellAliveColor     uint32
-	CellDeadColor      uint32
-	GridColor          uint32
+	running        bool
+	title          string
+	width          int32
+	height         int32
+	window         *sdl.Window
+	renderer       *sdl.Renderer
+	frameBuffer    *FrameBuffer // Holds every generation of cells.
+	CellSize       int32
+	CellAliveColor uint32
+	CellDeadColor  uint32
+	GridColor      uint32
+	FPS            uint32
 }
 
 // NewGame Returns a new initialized game.
@@ -31,23 +31,39 @@ func NewGame(title string, width, height int32) (*Game, error) {
 		title:          title,
 		width:          width,
 		height:         height,
-		colorBuffer:    make([]uint32, width*height),
 		CellSize:       20,
 		CellAliveColor: 0xFFFFFFFF,
 		CellDeadColor:  0x00000000,
 		GridColor:      0xFFFFFFFF,
+		FPS:            60,
 	}
 	err := game.init()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create new game: %w", err)
+		return nil, fmt.Errorf("failed to create init game resources: %w", err)
 	}
+	buffer, err := NewFrameBuffer(game)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new frame buffer: %w", err)
+	}
+	game.frameBuffer = buffer
 	return game, nil
 }
 
 // Run the game. Calling this will block until exiting the game.
 func (g *Game) Run() error {
+	g.title = fmt.Sprintf("%s [%dx%d]", g.title, g.width/g.CellSize, g.height/g.CellSize)
+	g.window.SetTitle(g.title)
 	g.running = true
+	tpf := uint64(1000 / g.FPS)
+	lastTicks := sdl.GetTicks64()
 	for g.running {
+		delta := sdl.GetTicks64() - lastTicks
+		if delta < tpf {
+			continue
+		}
+		lastTicks = sdl.GetTicks64()
+		fmt.Println("FPS:", 1000/delta)
+
 		g.processInput()
 		g.update()
 		g.render()
@@ -81,20 +97,14 @@ func (g *Game) init() error {
 	}
 	g.renderer = renderer
 
-	texture, err := renderer.CreateTexture(sdl.PIXELFORMAT_RGBA8888, sdl.TEXTUREACCESS_STREAMING, g.width, g.height)
-	if err != nil {
-		return fmt.Errorf("failed to create texture: %w", err)
-	}
-	g.colorBufferTexture = texture
-
 	return nil
 }
 
 // shutdown Clean up, free and destroy resources.
 func (g *Game) shutdown() error {
 	rendErr := g.renderer.Destroy()
-	winError := g.window.Destroy()
-	errs := errors.Join(rendErr, winError)
+	winErr := g.window.Destroy()
+	errs := errors.Join(rendErr, winErr)
 	sdl.Quit()
 	return errs
 }
@@ -111,22 +121,27 @@ func (g *Game) processInput() {
 			}
 		case *sdl.MouseButtonEvent:
 			if event.Type == sdl.MOUSEBUTTONDOWN {
-				g.toggleCellState(event.X, event.Y)
+				g.frameBuffer.ToggleCellState(event.X, event.Y)
 			}
 		}
 	}
 }
 
 // update game state.
-func (g *Game) update() {}
+func (g *Game) update() {
+	for y := int32(0); y < g.width/g.CellSize; y++ {
+		for x := int32(0); x < g.height/g.CellSize; x++ {
+			// TODO: Add rules here...
+		}
+	}
+}
 
 // render the game state to screen.
 func (g *Game) render() {
-	g.drawGrid()
-	err := g.renderColorBuffer()
+	g.frameBuffer.DrawGrid()
+	err := g.frameBuffer.Render()
 	if err != nil {
 		log.Println(err)
 	}
-	//g.clearColorBuffer(0x000000FF) // TODO: Create copy to compute next gen with old gen.
 	g.renderer.Present()
 }
