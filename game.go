@@ -21,6 +21,7 @@ type Game struct {
 	CellAliveColor uint32
 	CellDeadColor  uint32
 	GridColor      uint32
+	EnableGrid     bool
 	FPS            uint32
 }
 
@@ -118,6 +119,10 @@ func (g *Game) processInput() {
 		case *sdl.KeyboardEvent:
 			if event.Keysym.Sym == sdl.K_ESCAPE {
 				g.running = false
+				continue
+			}
+			if event.Type == sdl.KEYDOWN && event.Keysym.Sym == sdl.K_g {
+				g.EnableGrid = !g.EnableGrid
 			}
 		case *sdl.MouseButtonEvent:
 			if event.Type == sdl.MOUSEBUTTONDOWN {
@@ -138,7 +143,9 @@ func (g *Game) update() {
 
 // render the game state to screen.
 func (g *Game) render() {
-	g.frameBuffer.DrawGrid()
+	if g.EnableGrid {
+		g.frameBuffer.DrawGrid()
+	}
 	err := g.frameBuffer.Render()
 	if err != nil {
 		log.Println(err)
