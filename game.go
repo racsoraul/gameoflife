@@ -10,20 +10,21 @@ import (
 
 // Game Holds the configs and state of the Conway's Game of Life.
 type Game struct {
-	running        bool
-	title          string
-	width          int32
-	height         int32
-	window         *sdl.Window
-	renderer       *sdl.Renderer
-	frameBuffer    *FrameBuffer // Holds every generation of cells.
-	play           bool         // Acts as Play/Pause of the game.
-	CellSize       int32
-	CellAliveColor uint32
-	CellDeadColor  uint32
-	GridColor      uint32
-	EnableGrid     bool
-	FPS            uint32
+	running          bool
+	title            string
+	width            int32
+	height           int32
+	window           *sdl.Window
+	renderer         *sdl.Renderer
+	frameBuffer      *FrameBuffer // Holds every generation of cells.
+	playing          bool         // Acts as Play/Pause for the game.
+	CellSize         int32
+	CellAliveColor   uint32
+	CellDeadColor    uint32
+	GridColor        uint32
+	EnableGrid       bool
+	FPS              uint32
+	leftClickPressed bool
 }
 
 // NewGame Returns a new initialized game.
@@ -33,8 +34,8 @@ func NewGame(title string, width, height int32) (*Game, error) {
 		title:          title,
 		width:          width,
 		height:         height,
-		play:           true,
-		CellSize:       20,
+		playing:        false, // Paused by default.
+		CellSize:       5,
 		CellAliveColor: 0xFFFFFFFF,
 		CellDeadColor:  0x00000000,
 		GridColor:      0xFFFFFFFF,
@@ -54,8 +55,7 @@ func NewGame(title string, width, height int32) (*Game, error) {
 
 // Run the game. Calling this will block until exiting the game.
 func (g *Game) Run() error {
-	g.title = fmt.Sprintf("%s [%dx%d]", g.title, g.width/g.CellSize, g.height/g.CellSize)
-	g.window.SetTitle(g.title)
+	g.window.SetTitle(fmt.Sprintf("%s [%dx%d]", g.title, g.width/g.CellSize, g.height/g.CellSize))
 
 	posX := (g.width / g.CellSize) / 2
 	posY := (g.height / g.CellSize) / 2
@@ -64,6 +64,11 @@ func (g *Game) Run() error {
 	g.frameBuffer.SetCellState(ALIVE, posX, posY+1, false)
 	g.frameBuffer.SetCellState(ALIVE, posX-1, posY+1, false)
 	g.frameBuffer.SetCellState(ALIVE, posX, posY+2, false)
+	err := g.frameBuffer.Render()
+	if err != nil {
+		return fmt.Errorf("failed to render initial configuration")
+	}
+	g.renderer.Present()
 
 	g.running = true
 	tpf := uint64(1000 / g.FPS)
@@ -131,10 +136,10 @@ func (g *Game) processInput() {
 			if event.Type == sdl.KEYDOWN {
 				if event.Keysym.Sym == sdl.K_ESCAPE {
 					g.running = false
-					continue
+					return
 				}
 				if event.Keysym.Sym == sdl.K_p {
-					g.play = !g.play
+					g.playing = !g.playing
 					continue
 				}
 				if event.Keysym.Sym == sdl.K_g {
@@ -144,6 +149,13 @@ func (g *Game) processInput() {
 		case *sdl.MouseButtonEvent:
 			if event.Type == sdl.MOUSEBUTTONDOWN {
 				g.frameBuffer.ToggleCellState(event.X, event.Y)
+				g.leftClickPressed = true
+			} else {
+				g.leftClickPressed = false
+			}
+		case *sdl.MouseMotionEvent:
+			if g.leftClickPressed {
+				g.frameBuffer.ToggleCellState(event.X, event.Y)
 			}
 		}
 	}
@@ -151,11 +163,12 @@ func (g *Game) processInput() {
 
 // update game state.
 func (g *Game) update() {
-	if g.play {
-		for y := int32(0); y < g.width/g.CellSize; y++ {
-			for x := int32(0); x < g.height/g.CellSize; x++ {
-				g.RuleB3S23(x, y)
-			}
+	if !g.playing {
+		return
+	}
+	for y := int32(0); y < g.width/g.CellSize; y++ {
+		for x := int32(0); x < g.height/g.CellSize; x++ {
+			g.RuleB3S23(x, y)
 		}
 	}
 }
@@ -165,11 +178,10 @@ func (g *Game) render() {
 	if g.EnableGrid {
 		g.frameBuffer.DrawGrid()
 	}
-	if g.play {
-		err := g.frameBuffer.Render()
-		if err != nil {
-			log.Println(err)
-		}
-		g.renderer.Present()
+
+	err := g.frameBuffer.Render()
+	if err != nil {
+		log.Println(err)
 	}
+	g.renderer.Present()
 }

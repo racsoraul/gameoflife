@@ -8,8 +8,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	gameOfLife.CellSize = 6
-
 	err = gameOfLife.Run()
 	if err != nil {
 		log.Fatal(err)

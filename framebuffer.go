@@ -49,10 +49,16 @@ func (fb *FrameBuffer) Render() error {
 	var pixels unsafe.Pointer
 	if fb.index == 0 {
 		pixels = unsafe.Pointer(&fb.colorBufferA[0])
-		fb.index++
+		// Swap buffer if game is not paused.
+		if fb.g.playing {
+			fb.index++
+		}
 	} else {
 		pixels = unsafe.Pointer(&fb.colorBufferB[0])
-		fb.index--
+		// Swap buffer if game is not paused.
+		if fb.g.playing {
+			fb.index--
+		}
 	}
 	err := fb.texture.Update(
 		nil,
@@ -66,7 +72,10 @@ func (fb *FrameBuffer) Render() error {
 	if err != nil {
 		return err
 	}
-	fb.clear(fb.g.CellDeadColor)
+	if fb.g.playing {
+		// Clear buffer if game is not paused.
+		fb.clear(fb.g.CellDeadColor)
+	}
 	return nil
 }
 
