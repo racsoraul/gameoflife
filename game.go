@@ -19,7 +19,7 @@ type Game struct {
 	frameBuffer      *FrameBuffer // Holds every generation of cells.
 	playing          bool         // Acts as Play/Pause for the game.
 	leftClickPressed bool
-	CellSize         int32
+	cellSize         int32
 	CellAliveColor   uint32
 	CellDeadColor    uint32
 	GridColor        uint32
@@ -28,14 +28,14 @@ type Game struct {
 }
 
 // NewGame Returns a new initialized game.
-func NewGame(title string, width, height int32) (*Game, error) {
+func NewGame(title string, width, height, cellSize int32) (*Game, error) {
 	game := &Game{
 		running:        false,
 		title:          title,
 		width:          width,
 		height:         height,
 		playing:        false, // Paused by default.
-		CellSize:       5,
+		cellSize:       cellSize,
 		CellAliveColor: 0xFFFFFFFF,
 		CellDeadColor:  0x00000000,
 		GridColor:      0xFFFFFFFF,
@@ -55,10 +55,10 @@ func NewGame(title string, width, height int32) (*Game, error) {
 
 // Run the game. Calling this will block until exiting the game.
 func (g *Game) Run() error {
-	g.window.SetTitle(fmt.Sprintf("%s [%dx%d]", g.title, g.width/g.CellSize, g.height/g.CellSize))
+	g.window.SetTitle(fmt.Sprintf("%s [%dx%d]", g.title, g.width/g.cellSize, g.height/g.cellSize))
 
-	posX := (g.width / g.CellSize) / 2
-	posY := (g.height / g.CellSize) / 2
+	posX := ((g.width / g.cellSize) / 2) - 1
+	posY := ((g.height / g.cellSize) / 2) - 1
 	g.frameBuffer.SetCellState(ALIVE, posX, posY, false)
 	g.frameBuffer.SetCellState(ALIVE, posX+1, posY, false)
 	g.frameBuffer.SetCellState(ALIVE, posX, posY+1, false)
@@ -166,8 +166,8 @@ func (g *Game) update() {
 	if !g.playing {
 		return
 	}
-	for y := int32(0); y < g.height/g.CellSize; y++ {
-		for x := int32(0); x < g.width/g.CellSize; x++ {
+	for y := int32(0); y < g.height/g.cellSize; y++ {
+		for x := int32(0); x < g.width/g.cellSize; x++ {
 			g.RuleB3S23(x, y)
 		}
 	}

@@ -11,17 +11,17 @@ const (
 func (fb *FrameBuffer) SetCellState(state CellState, x, y int32, next bool) {
 	switch state {
 	case ALIVE:
-		fb.DrawRect(x*fb.g.CellSize, y*fb.g.CellSize, fb.g.CellSize, fb.g.CellSize, fb.g.CellAliveColor, next)
+		fb.DrawRect(x*fb.g.cellSize, y*fb.g.cellSize, fb.g.cellSize, fb.g.cellSize, fb.g.CellAliveColor, next)
 	case DEAD:
-		fb.DrawRect(x*fb.g.CellSize, y*fb.g.CellSize, fb.g.CellSize, fb.g.CellSize, fb.g.CellDeadColor, next)
+		fb.DrawRect(x*fb.g.cellSize, y*fb.g.cellSize, fb.g.cellSize, fb.g.cellSize, fb.g.CellDeadColor, next)
 	}
 }
 
 // GetCellState Get cell's state. If next is false, it uses the current buffer.
 func (fb *FrameBuffer) GetCellState(x, y int32, next bool) CellState {
 	pixelColor := fb.GetPixelColor(
-		(x*fb.g.CellSize)+(fb.g.CellSize/2),
-		(y*fb.g.CellSize)+(fb.g.CellSize/2),
+		(x*fb.g.cellSize)+(fb.g.cellSize/2),
+		(y*fb.g.cellSize)+(fb.g.cellSize/2),
 		next,
 	) // Get the color of the pixel at the center of the cell.
 	switch pixelColor {
@@ -35,7 +35,7 @@ func (fb *FrameBuffer) GetCellState(x, y int32, next bool) CellState {
 
 // GetCellPosFromWindowCoords Returns cell's position from the given relative window's coordinates.
 func (fb *FrameBuffer) GetCellPosFromWindowCoords(winX, winY int32) (int32, int32) {
-	return winX / fb.g.CellSize, winY / fb.g.CellSize
+	return winX / fb.g.cellSize, winY / fb.g.cellSize
 }
 
 // ToggleCellState Toggles cell's state located at the window's coordinates in current color buffer.
@@ -58,7 +58,7 @@ func (fb *FrameBuffer) GetCellNeighbourStates(x, y int32) [8]CellState {
 		states[0] = fb.GetCellState(x-1, y, false)
 	}
 	// Right.
-	if x+1 < fb.g.width/fb.g.CellSize {
+	if x+1 < fb.g.width/fb.g.cellSize {
 		states[1] = fb.GetCellState(x+1, y, false)
 	}
 	// Top
@@ -66,7 +66,7 @@ func (fb *FrameBuffer) GetCellNeighbourStates(x, y int32) [8]CellState {
 		states[2] = fb.GetCellState(x, y-1, false)
 	}
 	// Bottom.
-	if y+1 < fb.g.height/fb.g.CellSize {
+	if y+1 < fb.g.height/fb.g.cellSize {
 		states[3] = fb.GetCellState(x, y+1, false)
 	}
 	// Top-Left
@@ -74,15 +74,15 @@ func (fb *FrameBuffer) GetCellNeighbourStates(x, y int32) [8]CellState {
 		states[4] = fb.GetCellState(x-1, y-1, false)
 	}
 	// Top-Right
-	if x+1 < fb.g.width/fb.g.CellSize && y-1 >= 0 {
+	if x+1 < fb.g.width/fb.g.cellSize && y-1 >= 0 {
 		states[5] = fb.GetCellState(x+1, y-1, false)
 	}
 	// Bottom-Left
-	if x-1 >= 0 && y+1 < fb.g.height/fb.g.CellSize {
+	if x-1 >= 0 && y+1 < fb.g.height/fb.g.cellSize {
 		states[6] = fb.GetCellState(x-1, y+1, false)
 	}
 	// Bottom-Right
-	if x+1 < fb.g.width/fb.g.CellSize && y+1 < fb.g.height/fb.g.CellSize {
+	if x+1 < fb.g.width/fb.g.cellSize && y+1 < fb.g.height/fb.g.cellSize {
 		states[7] = fb.GetCellState(x+1, y+1, false)
 	}
 	return states

@@ -12,9 +12,10 @@ import (
 type FrameBuffer struct {
 	g            *Game
 	texture      *sdl.Texture
-	colorBufferA []uint32 // Index 0.
-	colorBufferB []uint32 // Index 1.
-	index        uint8    // Tracks what color buffer to use.
+	section      *sdl.Rect // Section of the texture to render.
+	colorBufferA []uint32  // Index 0.
+	colorBufferB []uint32  // Index 1.
+	index        uint8     // Tracks what color buffer to use.
 }
 
 // NewFrameBuffer Returns a new and initialized FrameBuffer.
@@ -28,6 +29,12 @@ func NewFrameBuffer(g *Game) (*FrameBuffer, error) {
 		colorBufferA: make([]uint32, g.width*g.height),
 		colorBufferB: make([]uint32, g.width*g.height),
 		texture:      texture,
+		section: &sdl.Rect{
+			X: g.cellSize * 2,
+			Y: g.cellSize * 2,
+			W: g.width - g.cellSize*4,
+			H: g.height - g.cellSize*4,
+		},
 	}, nil
 }
 
@@ -68,7 +75,7 @@ func (fb *FrameBuffer) Render() error {
 	if err != nil {
 		return err
 	}
-	err = fb.g.renderer.Copy(fb.texture, nil, nil)
+	err = fb.g.renderer.Copy(fb.texture, fb.section, nil)
 	if err != nil {
 		return err
 	}
@@ -118,11 +125,11 @@ func (fb *FrameBuffer) DrawRect(x, y, width, height int32, color uint32, next bo
 	}
 }
 
-// DrawGrid Draws a grid of cells with size CellSize and color GridColor in current color buffer.
+// DrawGrid Draws a grid of cells with size cellSize and color GridColor in current color buffer.
 func (fb *FrameBuffer) DrawGrid() {
 	for y := int32(0); y < fb.g.height; y++ {
 		for x := int32(0); x < fb.g.width; x++ {
-			if y%fb.g.CellSize == 0 || x%fb.g.CellSize == 0 {
+			if y%fb.g.cellSize == 0 || x%fb.g.cellSize == 0 {
 				fb.DrawPixel(x, y, fb.g.GridColor, false)
 			}
 		}

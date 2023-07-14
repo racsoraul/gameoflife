@@ -3,7 +3,7 @@ package main
 import "log"
 
 func main() {
-	gameOfLife, err := NewGame("Conway's Game of Life", 800, 800)
+	gameOfLife, err := NewGame("Conway's Game of Life", 500, 500, 5)
 	if err != nil {
 		log.Fatal(err)
 	}
