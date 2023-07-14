@@ -113,11 +113,7 @@ func (fb *FrameBuffer) GetPixelColor(x, y int32, next bool) uint32 {
 func (fb *FrameBuffer) DrawRect(x, y, width, height int32, color uint32, next bool) {
 	for j := int32(0); j < height; j++ {
 		for i := int32(0); i < width; i++ {
-			if fb.index == 0 {
-				fb.DrawPixel(x+i, y+j, color, next)
-			} else {
-				fb.DrawPixel(x+i, y+j, color, next)
-			}
+			fb.DrawPixel(x+i, y+j, color, next)
 		}
 	}
 }

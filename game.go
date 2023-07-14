@@ -18,13 +18,13 @@ type Game struct {
 	renderer         *sdl.Renderer
 	frameBuffer      *FrameBuffer // Holds every generation of cells.
 	playing          bool         // Acts as Play/Pause for the game.
+	leftClickPressed bool
 	CellSize         int32
 	CellAliveColor   uint32
 	CellDeadColor    uint32
 	GridColor        uint32
 	EnableGrid       bool
 	FPS              uint32
-	leftClickPressed bool
 }
 
 // NewGame Returns a new initialized game.
@@ -166,8 +166,8 @@ func (g *Game) update() {
 	if !g.playing {
 		return
 	}
-	for y := int32(0); y < g.width/g.CellSize; y++ {
-		for x := int32(0); x < g.height/g.CellSize; x++ {
+	for y := int32(0); y < g.height/g.CellSize; y++ {
+		for x := int32(0); x < g.width/g.CellSize; x++ {
 			g.RuleB3S23(x, y)
 		}
 	}
