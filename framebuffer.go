@@ -24,23 +24,20 @@ func NewFrameBuffer(g *Game) (*FrameBuffer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create texture: %w", err)
 	}
-	return &FrameBuffer{
+	f := &FrameBuffer{
 		g:            g,
 		colorBufferA: make([]uint32, g.width*g.height),
 		colorBufferB: make([]uint32, g.width*g.height),
 		texture:      texture,
-		section: &sdl.Rect{
-			X: g.cellSize * 2,
-			Y: g.cellSize * 2,
-			W: g.width - g.cellSize*4,
-			H: g.height - g.cellSize*4,
-		},
-	}, nil
+		section:      nil,
+	}
+	f.clearCurrent(g.CellDeadColor)
+	return f, nil
 }
 
-// clear Clears buffers with the provided color. It clears the color buffer that will render
+// clearNext Clears next buffer with the provided color. It clears the color buffer that will render
 // the next generation of cells.
-func (fb *FrameBuffer) clear(color uint32) {
+func (fb *FrameBuffer) clearNext(color uint32) {
 	for i := 0; i < len(fb.colorBufferA); i++ {
 		if fb.index == 0 {
 			fb.colorBufferB[i] = color
@@ -50,8 +47,19 @@ func (fb *FrameBuffer) clear(color uint32) {
 	}
 }
 
-// Render Renders current color buffer to the provided render using a texture. It increments or decrements the fb.index
-// to alternate the color buffers to render next generation.
+// clearCurrent Clears current buffer with the provided color.
+func (fb *FrameBuffer) clearCurrent(color uint32) {
+	for i := 0; i < len(fb.colorBufferA); i++ {
+		if fb.index == 0 {
+			fb.colorBufferA[i] = color
+		} else {
+			fb.colorBufferB[i] = color
+		}
+	}
+}
+
+// Render Renders current color buffer using a texture. It increments or decrements the fb.index
+// to alternate the color buffers to render the next generation.
 func (fb *FrameBuffer) Render() error {
 	var pixels unsafe.Pointer
 	if fb.index == 0 {
@@ -70,7 +78,7 @@ func (fb *FrameBuffer) Render() error {
 	err := fb.texture.Update(
 		nil,
 		pixels,
-		(int)(fb.g.width*(int32)(unsafe.Sizeof(fb.g.width))),
+		(int)(fb.g.width*4),
 	)
 	if err != nil {
 		return err
@@ -80,8 +88,8 @@ func (fb *FrameBuffer) Render() error {
 		return err
 	}
 	if fb.g.playing {
-		// Clear buffer if game is not paused.
-		fb.clear(fb.g.CellDeadColor)
+		// Clear next buffer if game is not paused.
+		fb.clearNext(fb.g.CellDeadColor)
 	}
 	return nil
 }
@@ -113,7 +121,7 @@ func (fb *FrameBuffer) GetPixelColor(x, y int32, next bool) uint32 {
 		}
 		return fb.colorBufferB[(y*fb.g.width)+x]
 	}
-	return 0x00000000
+	return fb.g.CellDeadColor
 }
 
 // DrawRect Draws a rectangle and fills it in with the specified color. If next is false, it uses current color buffer.
@@ -127,6 +135,9 @@ func (fb *FrameBuffer) DrawRect(x, y, width, height int32, color uint32, next bo
 
 // DrawGrid Draws a grid of cells with size cellSize and color GridColor in current color buffer.
 func (fb *FrameBuffer) DrawGrid() {
+	if fb.g.cellSize <= 1 {
+		return
+	}
 	for y := int32(0); y < fb.g.height; y++ {
 		for x := int32(0); x < fb.g.width; x++ {
 			if y%fb.g.cellSize == 0 || x%fb.g.cellSize == 0 {

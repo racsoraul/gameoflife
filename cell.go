@@ -1,5 +1,6 @@
 package main
 
+// CellState It's either Dead or Alive.
 type CellState uint8
 
 const (
@@ -9,12 +10,14 @@ const (
 
 // SetCellState Sets the specified state for the provided cell. If next is false, it uses the current buffer.
 func (fb *FrameBuffer) SetCellState(state CellState, x, y int32, next bool) {
+	var csColor uint32
 	switch state {
 	case ALIVE:
-		fb.DrawRect(x*fb.g.cellSize, y*fb.g.cellSize, fb.g.cellSize, fb.g.cellSize, fb.g.CellAliveColor, next)
+		csColor = fb.g.CellAliveColor
 	case DEAD:
-		fb.DrawRect(x*fb.g.cellSize, y*fb.g.cellSize, fb.g.cellSize, fb.g.cellSize, fb.g.CellDeadColor, next)
+		csColor = fb.g.CellDeadColor
 	}
+	fb.DrawRect(x*fb.g.cellSize, y*fb.g.cellSize, fb.g.cellSize, fb.g.cellSize, csColor, next)
 }
 
 // GetCellState Get cell's state. If next is false, it uses the current buffer.
@@ -39,14 +42,15 @@ func (fb *FrameBuffer) GetCellPosFromWindowCoords(winX, winY int32) (int32, int3
 }
 
 // ToggleCellState Toggles cell's state located at the window's coordinates in current color buffer.
-func (fb *FrameBuffer) ToggleCellState(winX, winY int32) {
+// If next is false, it uses the current buffer.
+func (fb *FrameBuffer) ToggleCellState(winX, winY int32, next bool) {
 	x, y := fb.GetCellPosFromWindowCoords(winX, winY)
-	cellState := fb.GetCellState(x, y, false)
+	cellState := fb.GetCellState(x, y, next)
 	switch cellState {
 	case ALIVE:
-		fb.SetCellState(DEAD, x, y, false)
+		fb.SetCellState(DEAD, x, y, next)
 	case DEAD:
-		fb.SetCellState(ALIVE, x, y, false)
+		fb.SetCellState(ALIVE, x, y, next)
 	}
 }
 

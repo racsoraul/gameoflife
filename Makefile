@@ -13,4 +13,4 @@ build:
 clean:
 	rm -f bin/*
 
-PHONY: build_dev clean build
+PHONY: run_dev build_dev run clean build

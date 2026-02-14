@@ -19,6 +19,7 @@ type Game struct {
 	frameBuffer      *FrameBuffer // Holds every generation of cells.
 	playing          bool         // Acts as Play/Pause for the game.
 	leftClickPressed bool
+	step             bool // Progresses one generation while on pause.
 	cellSize         int32
 	CellAliveColor   uint32
 	CellDeadColor    uint32
@@ -37,7 +38,7 @@ func NewGame(title string, width, height, cellSize int32) (*Game, error) {
 		playing:        false, // Paused by default.
 		cellSize:       cellSize,
 		CellAliveColor: 0xFFFFFFFF,
-		CellDeadColor:  0x00000000,
+		CellDeadColor:  0x000000FF,
 		GridColor:      0xFFFFFFFF,
 		FPS:            60,
 	}
@@ -79,11 +80,16 @@ func (g *Game) Run() error {
 			continue
 		}
 		lastTicks = sdl.GetTicks64()
-		fmt.Println("FPS:", 1000/delta)
+		// fmt.Println("FPS:", 1000/delta)
 
 		g.processInput()
 		g.update()
 		g.render()
+
+		if g.step {
+			g.step = false
+			g.playing = false
+		}
 	}
 	return g.shutdown()
 }
@@ -117,7 +123,7 @@ func (g *Game) init() error {
 	return nil
 }
 
-// shutdown Clean up, free and destroy resources.
+// shutdown Clean up, free, and destroy resources.
 func (g *Game) shutdown() error {
 	rendErr := g.renderer.Destroy()
 	winErr := g.window.Destroy()
@@ -145,17 +151,24 @@ func (g *Game) processInput() {
 				if event.Keysym.Sym == sdl.K_g {
 					g.EnableGrid = !g.EnableGrid
 				}
+				if event.Keysym.Sym == sdl.K_s {
+					if !g.playing {
+						g.playing = true
+						g.step = true
+					}
+					continue
+				}
 			}
 		case *sdl.MouseButtonEvent:
 			if event.Type == sdl.MOUSEBUTTONDOWN {
-				g.frameBuffer.ToggleCellState(event.X, event.Y)
+				g.frameBuffer.ToggleCellState(event.X, event.Y, false)
 				g.leftClickPressed = true
 			} else {
 				g.leftClickPressed = false
 			}
 		case *sdl.MouseMotionEvent:
 			if g.leftClickPressed {
-				g.frameBuffer.ToggleCellState(event.X, event.Y)
+				g.frameBuffer.ToggleCellState(event.X, event.Y, false)
 			}
 		}
 	}
