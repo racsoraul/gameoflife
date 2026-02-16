@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/veandco/go-sdl2/sdl"
+	"github.com/veandco/go-sdl2/ttf"
 )
 
 // Game Holds the configs and state of the Conway's Game of Life.
@@ -26,6 +27,9 @@ type Game struct {
 	GridColor        uint32
 	EnableGrid       bool
 	FPS              uint32
+	generation       uint32 // Current generation number.
+	font             *ttf.Font
+	infoHeight       int32
 }
 
 // NewGame Returns a new initialized game.
@@ -41,6 +45,7 @@ func NewGame(title string, width, height, cellSize int32) (*Game, error) {
 		CellDeadColor:  0x000000FF,
 		GridColor:      0xFFFFFFFF,
 		FPS:            60,
+		infoHeight:     40,
 	}
 	err := game.init()
 	if err != nil {
@@ -58,6 +63,7 @@ func NewGame(title string, width, height, cellSize int32) (*Game, error) {
 func (g *Game) Run() error {
 	g.window.SetTitle(fmt.Sprintf("%s [%dx%d]", g.title, g.width/g.cellSize, g.height/g.cellSize))
 
+	// Initial configuration.
 	posX := ((g.width / g.cellSize) / 2) - 1
 	posY := ((g.height / g.cellSize) / 2) - 1
 	g.frameBuffer.SetCellState(ALIVE, posX, posY, false)
@@ -80,11 +86,14 @@ func (g *Game) Run() error {
 			continue
 		}
 		lastTicks = sdl.GetTicks64()
-		// fmt.Println("FPS:", 1000/delta)
 
 		g.processInput()
 		g.update()
-		g.render()
+		fps := uint32(0)
+		if delta > 0 {
+			fps = uint32(1000 / delta)
+		}
+		g.render(fps)
 
 		if g.step {
 			g.step = false
@@ -96,7 +105,7 @@ func (g *Game) Run() error {
 
 // init Initialize game resources.
 func (g *Game) init() error {
-	err := sdl.Init(sdl.INIT_EVERYTHING)
+	err := sdl.Init(sdl.INIT_VIDEO)
 	if err != nil {
 		return fmt.Errorf("failed to initialize subsystems: %w", err)
 	}
@@ -106,7 +115,7 @@ func (g *Game) init() error {
 		sdl.WINDOWPOS_CENTERED,
 		sdl.WINDOWPOS_CENTERED,
 		g.width,
-		g.height,
+		g.height+g.infoHeight,
 		sdl.WINDOW_SHOWN,
 	)
 	if err != nil {
@@ -120,14 +129,28 @@ func (g *Game) init() error {
 	}
 	g.renderer = renderer
 
+	if err = ttf.Init(); err != nil {
+		return fmt.Errorf("failed to initialize TTF: %w", err)
+	}
+
+	font, err := loadFont(14)
+	if err != nil {
+		log.Printf("Warning: failed to load font: %v", err)
+	}
+	g.font = font
+
 	return nil
 }
 
 // shutdown Clean up, free, and destroy resources.
 func (g *Game) shutdown() error {
+	if g.font != nil {
+		g.font.Close()
+	}
 	rendErr := g.renderer.Destroy()
 	winErr := g.window.Destroy()
 	errs := errors.Join(rendErr, winErr)
+	ttf.Quit()
 	sdl.Quit()
 	return errs
 }
@@ -179,6 +202,7 @@ func (g *Game) update() {
 	if !g.playing {
 		return
 	}
+	g.generation++
 	for y := int32(0); y < g.height/g.cellSize; y++ {
 		for x := int32(0); x < g.width/g.cellSize; x++ {
 			g.RuleB3S23(x, y)
@@ -187,14 +211,79 @@ func (g *Game) update() {
 }
 
 // render the game state to screen.
-func (g *Game) render() {
-	if g.EnableGrid {
-		g.frameBuffer.DrawGrid()
-	}
-
+func (g *Game) render(fps uint32) {
 	err := g.frameBuffer.Render()
 	if err != nil {
 		log.Println(err)
 	}
+
+	if g.EnableGrid {
+		g.frameBuffer.DrawGrid()
+	}
+
+	g.renderInfoSection(fps)
+
 	g.renderer.Present()
+}
+
+// renderInfoSection Render an info section with the shortcuts and stats of the game.
+func (g *Game) renderInfoSection(fps uint32) {
+	if g.font == nil {
+		return
+	}
+
+	// Draw background for the info section.
+	rect := sdl.Rect{
+		X: 0,
+		Y: g.height,
+		W: g.width,
+		H: g.infoHeight,
+	}
+	g.renderer.SetDrawColor(32, 32, 32, 255) // Dark gray.
+	g.renderer.FillRect(&rect)
+
+	// Shortcuts
+	pausePlay := "Pause"
+	if !g.playing {
+		pausePlay = "Play"
+	}
+	grid := "Off"
+	if g.EnableGrid {
+		grid = "On"
+	}
+	infoTextColor := sdl.Color{R: 200, G: 200, B: 200, A: 255}
+
+	// Shortcuts.
+	shortcuts := fmt.Sprintf("Exit:ESC | %s: P | Step: S | Grid(%s): G", pausePlay, grid)
+	g.drawText(shortcuts, 10, g.height+5, infoTextColor)
+
+	// Generation/Step and FPS.
+	stats := fmt.Sprintf("Gen: %d | FPS: %d", g.generation, fps)
+	g.drawText(stats, 10, g.height+22, infoTextColor)
+}
+
+// drawText Renders the provided text.
+func (g *Game) drawText(text string, x, y int32, color sdl.Color) {
+	if g.font == nil || text == "" {
+		return
+	}
+	surface, err := g.font.RenderUTF8Blended(text, color)
+	if err != nil {
+		return
+	}
+	defer surface.Free()
+
+	texture, err := g.renderer.CreateTextureFromSurface(surface)
+	if err != nil {
+		return
+	}
+	defer texture.Destroy()
+
+	dst := sdl.Rect{
+		X: x,
+		Y: y,
+		W: surface.W,
+		H: surface.H,
+	}
+	g.renderer.Copy(texture, nil, &dst)
 }

@@ -64,13 +64,13 @@ func (fb *FrameBuffer) Render() error {
 	var pixels unsafe.Pointer
 	if fb.index == 0 {
 		pixels = unsafe.Pointer(&fb.colorBufferA[0])
-		// Swap buffer if game is not paused.
+		// Swap buffer if the game is not paused.
 		if fb.g.playing {
 			fb.index++
 		}
 	} else {
 		pixels = unsafe.Pointer(&fb.colorBufferB[0])
-		// Swap buffer if game is not paused.
+		// Swap buffer if the game is not paused.
 		if fb.g.playing {
 			fb.index--
 		}
@@ -83,18 +83,18 @@ func (fb *FrameBuffer) Render() error {
 	if err != nil {
 		return err
 	}
-	err = fb.g.renderer.Copy(fb.texture, fb.section, nil)
+	err = fb.g.renderer.Copy(fb.texture, fb.section, &sdl.Rect{X: 0, Y: 0, W: fb.g.width, H: fb.g.height})
 	if err != nil {
 		return err
 	}
 	if fb.g.playing {
-		// Clear next buffer if game is not paused.
+		// Clear the next buffer if the game is not paused.
 		fb.clearNext(fb.g.CellDeadColor)
 	}
 	return nil
 }
 
-// DrawPixel Draws a pixel with the specified color. If next is false, it uses current color buffer.
+// DrawPixel Draws a pixel with the specified color. If next is false, it uses the current color buffer.
 func (fb *FrameBuffer) DrawPixel(x, y int32, color uint32, next bool) {
 	if x >= 0 && x < fb.g.width && y >= 0 && y < fb.g.height {
 		var index uint8
@@ -109,7 +109,7 @@ func (fb *FrameBuffer) DrawPixel(x, y int32, color uint32, next bool) {
 	}
 }
 
-// GetPixelColor Returns color of the specified pixel. If next is false, it uses current color buffer.
+// GetPixelColor Returns color of the specified pixel. If next is false, it uses the current color buffer.
 func (fb *FrameBuffer) GetPixelColor(x, y int32, next bool) uint32 {
 	if x >= 0 && x < fb.g.width && y >= 0 && y < fb.g.height {
 		var index uint8
@@ -124,7 +124,7 @@ func (fb *FrameBuffer) GetPixelColor(x, y int32, next bool) uint32 {
 	return fb.g.CellDeadColor
 }
 
-// DrawRect Draws a rectangle and fills it in with the specified color. If next is false, it uses current color buffer.
+// DrawRect Draws a rectangle and fills it in with the specified color. If next is false, it uses the current color buffer.
 func (fb *FrameBuffer) DrawRect(x, y, width, height int32, color uint32, next bool) {
 	for j := int32(0); j < height; j++ {
 		for i := int32(0); i < width; i++ {
@@ -133,16 +133,20 @@ func (fb *FrameBuffer) DrawRect(x, y, width, height int32, color uint32, next bo
 	}
 }
 
-// DrawGrid Draws a grid of cells with size cellSize and color GridColor in current color buffer.
+// DrawGrid Draws a grid of cells with size cellSize and color GridColor using the renderer (overlay).
 func (fb *FrameBuffer) DrawGrid() {
 	if fb.g.cellSize <= 1 {
 		return
 	}
-	for y := int32(0); y < fb.g.height; y++ {
-		for x := int32(0); x < fb.g.width; x++ {
-			if y%fb.g.cellSize == 0 || x%fb.g.cellSize == 0 {
-				fb.DrawPixel(x, y, fb.g.GridColor, false)
-			}
-		}
+	r := uint8((fb.g.GridColor >> 24) & 0xFF)
+	g := uint8((fb.g.GridColor >> 16) & 0xFF)
+	b := uint8((fb.g.GridColor >> 8) & 0xFF)
+	a := uint8(fb.g.GridColor & 0xFF)
+	fb.g.renderer.SetDrawColor(r, g, b, a)
+	for y := int32(0); y <= fb.g.height; y += fb.g.cellSize {
+		fb.g.renderer.DrawLine(0, y, fb.g.width, y)
+	}
+	for x := int32(0); x <= fb.g.width; x += fb.g.cellSize {
+		fb.g.renderer.DrawLine(x, 0, x, fb.g.height)
 	}
 }
