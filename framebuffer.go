@@ -7,7 +7,7 @@ import (
 	"github.com/veandco/go-sdl2/sdl"
 )
 
-// FrameBuffer It's composed of two color buffers. It allows to compute the next generation of cells based on the
+// FrameBuffer It's composed of two color buffers. It allows computing the next generation of cells based on the
 // previous generation, by alternating both color buffers. It renders to screen using a texture.
 type FrameBuffer struct {
 	g            *Game
@@ -134,19 +134,31 @@ func (fb *FrameBuffer) DrawRect(x, y, width, height int32, color uint32, next bo
 }
 
 // DrawGrid Draws a grid of cells with size cellSize and color GridColor using the renderer (overlay).
-func (fb *FrameBuffer) DrawGrid() {
+func (fb *FrameBuffer) DrawGrid() error {
 	if fb.g.cellSize <= 1 {
-		return
+		return nil
 	}
 	r := uint8((fb.g.GridColor >> 24) & 0xFF)
 	g := uint8((fb.g.GridColor >> 16) & 0xFF)
 	b := uint8((fb.g.GridColor >> 8) & 0xFF)
 	a := uint8(fb.g.GridColor & 0xFF)
-	fb.g.renderer.SetDrawColor(r, g, b, a)
+	err := fb.g.renderer.SetDrawColor(r, g, b, a)
+	if err != nil {
+		return err
+	}
+
 	for y := int32(0); y <= fb.g.height; y += fb.g.cellSize {
-		fb.g.renderer.DrawLine(0, y, fb.g.width, y)
+		err = fb.g.renderer.DrawLine(0, y, fb.g.width, y)
+		if err != nil {
+			return err
+		}
 	}
 	for x := int32(0); x <= fb.g.width; x += fb.g.cellSize {
-		fb.g.renderer.DrawLine(x, 0, x, fb.g.height)
+		err = fb.g.renderer.DrawLine(x, 0, x, fb.g.height)
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }

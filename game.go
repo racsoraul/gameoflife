@@ -3,7 +3,8 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
+	"os"
 
 	"github.com/veandco/go-sdl2/sdl"
 	"github.com/veandco/go-sdl2/ttf"
@@ -34,6 +35,10 @@ type Game struct {
 
 // NewGame Returns a new initialized game.
 func NewGame(title string, width, height, cellSize int32) (*Game, error) {
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		AddSource: true,
+	})))
+
 	game := &Game{
 		running:        false,
 		title:          title,
@@ -43,7 +48,7 @@ func NewGame(title string, width, height, cellSize int32) (*Game, error) {
 		cellSize:       cellSize,
 		CellAliveColor: 0xFFFFFFFF,
 		CellDeadColor:  0x000000FF,
-		GridColor:      0xFFFFFFFF,
+		GridColor:      0xA9A9A9FF,
 		FPS:            60,
 		infoHeight:     40,
 	}
@@ -81,13 +86,14 @@ func (g *Game) Run() error {
 	tpf := uint64(1000 / g.FPS)
 	lastTicks := sdl.GetTicks64()
 	for g.running {
+		g.processInput()
+
 		delta := sdl.GetTicks64() - lastTicks
 		if delta < tpf {
 			continue
 		}
 		lastTicks = sdl.GetTicks64()
 
-		g.processInput()
 		g.update()
 		fps := uint32(0)
 		if delta > 0 {
@@ -135,7 +141,7 @@ func (g *Game) init() error {
 
 	font, err := loadFont(14)
 	if err != nil {
-		log.Printf("Warning: failed to load font: %v", err)
+		slog.Warn("failed to load font", "error", err)
 	}
 	g.font = font
 
@@ -214,22 +220,28 @@ func (g *Game) update() {
 func (g *Game) render(fps uint32) {
 	err := g.frameBuffer.Render()
 	if err != nil {
-		log.Println(err)
+		slog.Error("failed to render frame buffer", "error", err)
 	}
 
 	if g.EnableGrid {
-		g.frameBuffer.DrawGrid()
+		err = g.frameBuffer.DrawGrid()
+		if err != nil {
+			slog.Error("failed to draw grid", "error", err)
+		}
 	}
 
-	g.renderInfoSection(fps)
+	err = g.renderInfoSection(fps)
+	if err != nil {
+		slog.Error("failed to render info section", "error", err)
+	}
 
 	g.renderer.Present()
 }
 
 // renderInfoSection Render an info section with the shortcuts and stats of the game.
-func (g *Game) renderInfoSection(fps uint32) {
+func (g *Game) renderInfoSection(fps uint32) error {
 	if g.font == nil {
-		return
+		return nil
 	}
 
 	// Draw background for the info section.
@@ -239,8 +251,16 @@ func (g *Game) renderInfoSection(fps uint32) {
 		W: g.width,
 		H: g.infoHeight,
 	}
-	g.renderer.SetDrawColor(32, 32, 32, 255) // Dark gray.
-	g.renderer.FillRect(&rect)
+
+	// Dark gray.
+	err := g.renderer.SetDrawColor(32, 32, 32, 255)
+	if err != nil {
+		return err
+	}
+	err = g.renderer.FillRect(&rect)
+	if err != nil {
+		return err
+	}
 
 	// Shortcuts
 	pausePlay := "Pause"
@@ -254,28 +274,36 @@ func (g *Game) renderInfoSection(fps uint32) {
 	infoTextColor := sdl.Color{R: 200, G: 200, B: 200, A: 255}
 
 	// Shortcuts.
-	shortcuts := fmt.Sprintf("Exit:ESC | %s: P | Step: S | Grid(%s): G", pausePlay, grid)
-	g.drawText(shortcuts, 10, g.height+5, infoTextColor)
+	shortcuts := fmt.Sprintf("Exit: ESC | %s: P | Step: S | Grid(%s): G", pausePlay, grid)
+	err = g.drawText(shortcuts, 10, g.height+5, infoTextColor)
+	if err != nil {
+		return err
+	}
 
 	// Generation/Step and FPS.
-	stats := fmt.Sprintf("Gen: %d | FPS: %d", g.generation, fps)
-	g.drawText(stats, 10, g.height+22, infoTextColor)
+	stats := fmt.Sprintf("Gen: %d | FPS: %d | Click on any cell to toggle its state", g.generation, fps)
+	err = g.drawText(stats, 10, g.height+22, infoTextColor)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // drawText Renders the provided text.
-func (g *Game) drawText(text string, x, y int32, color sdl.Color) {
+func (g *Game) drawText(text string, x, y int32, color sdl.Color) error {
 	if g.font == nil || text == "" {
-		return
+		return nil
 	}
 	surface, err := g.font.RenderUTF8Blended(text, color)
 	if err != nil {
-		return
+		return err
 	}
 	defer surface.Free()
 
 	texture, err := g.renderer.CreateTextureFromSurface(surface)
 	if err != nil {
-		return
+		return err
 	}
 	defer texture.Destroy()
 
@@ -285,5 +313,5 @@ func (g *Game) drawText(text string, x, y int32, color sdl.Color) {
 		W: surface.W,
 		H: surface.H,
 	}
-	g.renderer.Copy(texture, nil, &dst)
+	return g.renderer.Copy(texture, nil, &dst)
 }
