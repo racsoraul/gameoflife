@@ -44,7 +44,9 @@ type Game struct {
 	catalogIndex         int      // Current index in the pattern catalog (-1 = custom/file pattern).
 	currentPattern       *Pattern // Last loaded pattern, used for reset.
 	// Infinite grid. Maps cell coordinate to age (generations alive). Only live cells are stored.
-	cells map[[2]int32]uint32
+	cells          map[[2]int32]uint32
+	nextCells      map[[2]int32]uint32 // Scratch buffer for next generation (reused to avoid alloc).
+	neighbourCount map[[2]int32]int    // Scratch buffer for neighbor counting (reused to avoid alloc).
 	// Camera/viewport. World coordinate of the top-left corner of the screen.
 	cameraX float64
 	cameraY float64
@@ -70,9 +72,11 @@ func NewGame(title string, width, height, cellSize int32) (*Game, error) {
 		gridColor:      0xA9A9A9FF,
 		fps:            60,
 		infoHeight:     40,
-		genPerSec:      10,
+		genPerSec:      25,
 		catalogIndex:   -1,
 		cells:          make(map[[2]int32]uint32),
+		nextCells:      make(map[[2]int32]uint32),
+		neighbourCount: make(map[[2]int32]int),
 		trails:         make(map[[2]int32]uint8),
 		zoom:           float64(cellSize),
 	}
@@ -198,13 +202,15 @@ func (g *Game) screenToWorld(screenX, screenY int32) (int32, int32) {
 
 // updateTitle updates the window title with grid info.
 func (g *Game) updateTitle() {
-	g.window.SetTitle(fmt.Sprintf("%s [zoom:%.0f]", g.title, g.zoom))
+	g.window.SetTitle(fmt.Sprintf("%s [ZOOM:%.0f]", g.title, g.zoom))
 }
 
 // loadPattern clears the grid and places the given pattern centered at origin.
 func (g *Game) loadPattern(pattern *Pattern) {
 	g.currentPattern = pattern
 	g.cells = make(map[[2]int32]uint32)
+	g.nextCells = make(map[[2]int32]uint32)
+	g.neighbourCount = make(map[[2]int32]int)
 	g.trails = make(map[[2]int32]uint8)
 	g.generation = 0
 	g.genAccumulator = 0
@@ -326,6 +332,8 @@ func (g *Game) processInput() {
 				case sdl.K_c:
 					// Clear the grid.
 					g.cells = make(map[[2]int32]uint32)
+					g.nextCells = make(map[[2]int32]uint32)
+					g.neighbourCount = make(map[[2]int32]int)
 					g.trails = make(map[[2]int32]uint8)
 					g.generation = 0
 					g.genAccumulator = 0
@@ -408,25 +416,36 @@ func ageToColor(age uint32) uint32 {
 
 // renderWorld draws the current cell state from the infinite grid into the pixel buffer.
 func (g *Game) renderWorld() {
-	// Clear the current buffer.
 	g.frameBuffer.clearCurrent(g.cellDeadColor)
 
 	cellPx := max(int32(g.zoom), 1)
+
+	// Compute the visible world-cell bounding box once.
+	// Any cell outside this range is guaranteed off-screen — skip it without
+	// doing per-cell float math.
+	visMinX := int32(math.Floor(g.cameraX)) - 1
+	visMinY := int32(math.Floor(g.cameraY)) - 1
+	visMaxX := int32(math.Ceil(g.cameraX+float64(g.width)/g.zoom)) + 1
+	visMaxY := int32(math.Ceil(g.cameraY+float64(g.height)/g.zoom)) + 1
 
 	// Render fade trails (behind alive cells).
 	if g.trailMode {
 		for pos, remaining := range g.trails {
 			if g.cells[pos] > 0 {
-				// Cell is alive again, remove trail.
 				delete(g.trails, pos)
+				continue
+			}
+			if pos[0] < visMinX || pos[0] > visMaxX || pos[1] < visMinY || pos[1] > visMaxY {
+				// Still decay even when off-screen.
+				g.trails[pos] = remaining - 1
+				if remaining <= 1 {
+					delete(g.trails, pos)
+				}
 				continue
 			}
 			screenX := int32(float64(pos[0])*g.zoom - g.cameraX*g.zoom)
 			screenY := int32(float64(pos[1])*g.zoom - g.cameraY*g.zoom)
-			if screenX+cellPx < 0 || screenX >= g.width || screenY+cellPx < 0 || screenY >= g.height {
-				continue
-			}
-			brightness := uint32(remaining) * 25 // 8*25 = 200 max brightness.
+			brightness := uint32(remaining) * 25
 			trailColor := (brightness << 24) | (brightness << 16) | (brightness << 8) | 0xFF
 			g.frameBuffer.DrawRect(screenX, screenY, cellPx, cellPx, trailColor)
 			g.trails[pos] = remaining - 1
@@ -437,13 +456,12 @@ func (g *Game) renderWorld() {
 	}
 
 	for pos, age := range g.cells {
-		// World pos -> screen pixel.
-		screenX := int32(float64(pos[0])*g.zoom - g.cameraX*g.zoom)
-		screenY := int32(float64(pos[1])*g.zoom - g.cameraY*g.zoom)
-		// Cull off-screen cells.
-		if screenX+cellPx < 0 || screenX >= g.width || screenY+cellPx < 0 || screenY >= g.height {
+		// Fast bounds check in world coordinates — avoids float math for off-screen cells.
+		if pos[0] < visMinX || pos[0] > visMaxX || pos[1] < visMinY || pos[1] > visMaxY {
 			continue
 		}
+		screenX := int32(float64(pos[0])*g.zoom - g.cameraX*g.zoom)
+		screenY := int32(float64(pos[1])*g.zoom - g.cameraY*g.zoom)
 		color := g.cellAliveColor
 		if g.heatmapMode {
 			color = ageToColor(age)
@@ -520,7 +538,7 @@ func (g *Game) renderInfoSection(fps uint32) error {
 	if g.trailMode {
 		trail = "On"
 	}
-	shortcuts := fmt.Sprintf("Exit: ESC | %s: P | Step: S | Grid(%s): G | Heatmap(%s): H | Trail(%s): T | Speed: [/] | Clear: C | Reset: R | Next: N", pausePlay, grid, heatmap, trail)
+	shortcuts := fmt.Sprintf("Exit: ESC | %s: P/Space | Step: S | Grid(%s): G | Heatmap(%s): H | Trail(%s): T | Fullscreen: F | Speed: [/] | Clear: C | Reset: R | Next: N", pausePlay, grid, heatmap, trail)
 	err = g.drawText(shortcuts, 10, g.height+5, infoTextColor)
 	if err != nil {
 		return err

@@ -8,23 +8,26 @@ var directions = [8][2]int32{
 }
 
 // RuleB3S23 Implements the Life rule B3/S23.
+// Reuses g.neighbourCount and g.nextCells maps to avoid allocation per generation.
 func (g *Game) RuleB3S23() {
-	// Count live neighbors for every cell that could change the state.
-	neighbourCount := make(map[[2]int32]int)
+	// Clear scratch maps (retains allocated bucket memory).
+	clear(g.neighbourCount)
+	clear(g.nextCells)
+
+	// Count live neighbors for every cell that could change state.
 	for pos := range g.cells {
 		for _, d := range directions {
 			n := [2]int32{pos[0] + d[0], pos[1] + d[1]}
-			neighbourCount[n]++
+			g.neighbourCount[n]++
 		}
 	}
 
-	nextCells := make(map[[2]int32]uint32)
-	for pos, count := range neighbourCount {
+	for pos, count := range g.neighbourCount {
 		age := g.cells[pos]
 		if age > 0 && (count == 2 || count == 3) {
-			nextCells[pos] = age + 1 // Survived: increment age.
+			g.nextCells[pos] = age + 1 // Survived: increment age.
 		} else if age == 0 && count == 3 {
-			nextCells[pos] = 1 // Born: age starts at 1.
+			g.nextCells[pos] = 1 // Born: age starts at 1.
 		}
 	}
 
@@ -32,11 +35,12 @@ func (g *Game) RuleB3S23() {
 	if g.trailMode {
 		const trailFrames = 8
 		for pos := range g.cells {
-			if nextCells[pos] == 0 {
+			if g.nextCells[pos] == 0 {
 				g.trails[pos] = trailFrames
 			}
 		}
 	}
 
-	g.cells = nextCells
+	// Swap cells and nextCells so the current buffer becomes the scratch for next generation.
+	g.cells, g.nextCells = g.nextCells, g.cells
 }
