@@ -4,33 +4,51 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 
 	"github.com/veandco/go-sdl2/sdl"
 	"github.com/veandco/go-sdl2/ttf"
 )
 
+const zoomFactor = 1.2
+
 // Game Holds the configs and state of the Conway's Game of Life.
 type Game struct {
-	running          bool
-	title            string
-	width            int32
-	height           int32
-	window           *sdl.Window
-	renderer         *sdl.Renderer
-	frameBuffer      *FrameBuffer // Holds every generation of cells.
-	playing          bool         // Acts as Play/Pause for the game.
-	leftClickPressed bool
-	step             bool // Progresses one generation while on pause.
-	cellSize         int32
-	CellAliveColor   uint32
-	CellDeadColor    uint32
-	GridColor        uint32
-	EnableGrid       bool
-	FPS              uint32
-	generation       uint32 // Current generation number.
-	font             *ttf.Font
-	infoHeight       int32
+	running              bool
+	title                string
+	width                int32
+	height               int32
+	window               *sdl.Window
+	renderer             *sdl.Renderer
+	frameBuffer          *FrameBuffer // Holds every generation of cells.
+	playing              bool         // Acts as Play/Pause for the game.
+	activeTransitionRule string
+	leftClickPressed     bool
+	rightClickPressed    bool
+	step                 bool // Progresses one generation while on pause.
+	cellAliveColor       uint32
+	cellDeadColor        uint32
+	gridColor            uint32
+	enableGrid           bool
+	heatmapMode          bool
+	trailMode            bool
+	fullscreen           bool
+	trails               map[[2]int32]uint8 // Recently dead cells with remaining fade frames.
+	fps                  uint32
+	generation           uint32 // Current generation number.
+	font                 *ttf.Font
+	infoHeight           int32
+	genPerSec            int      // Target generations per second (1-60).
+	genAccumulator       uint64   // Accumulated ms for generation timing.
+	catalogIndex         int      // Current index in the pattern catalog (-1 = custom/file pattern).
+	currentPattern       *Pattern // Last loaded pattern, used for reset.
+	// Infinite grid. Maps cell coordinate to age (generations alive). Only live cells are stored.
+	cells map[[2]int32]uint32
+	// Camera/viewport. World coordinate of the top-left corner of the screen.
+	cameraX float64
+	cameraY float64
+	zoom    float64 // Pixels per cell.
 }
 
 // NewGame Returns a new initialized game.
@@ -45,12 +63,18 @@ func NewGame(title string, width, height, cellSize int32) (*Game, error) {
 		width:          width,
 		height:         height,
 		playing:        false, // Paused by default.
-		cellSize:       cellSize,
-		CellAliveColor: 0xFFFFFFFF,
-		CellDeadColor:  0x000000FF,
-		GridColor:      0xA9A9A9FF,
-		FPS:            60,
+		heatmapMode:    true,
+		trailMode:      true,
+		cellAliveColor: 0xFFFFFFFF,
+		cellDeadColor:  0x000000FF,
+		gridColor:      0xA9A9A9FF,
+		fps:            60,
 		infoHeight:     40,
+		genPerSec:      10,
+		catalogIndex:   -1,
+		cells:          make(map[[2]int32]uint32),
+		trails:         make(map[[2]int32]uint8),
+		zoom:           float64(cellSize),
 	}
 	err := game.init()
 	if err != nil {
@@ -65,17 +89,9 @@ func NewGame(title string, width, height, cellSize int32) (*Game, error) {
 }
 
 // Run the game. Calling this will block until exiting the game.
-func (g *Game) Run() error {
-	g.window.SetTitle(fmt.Sprintf("%s [%dx%d]", g.title, g.width/g.cellSize, g.height/g.cellSize))
-
-	// Initial configuration.
-	posX := ((g.width / g.cellSize) / 2) - 1
-	posY := ((g.height / g.cellSize) / 2) - 1
-	g.frameBuffer.SetCellState(ALIVE, posX, posY, false)
-	g.frameBuffer.SetCellState(ALIVE, posX+1, posY, false)
-	g.frameBuffer.SetCellState(ALIVE, posX, posY+1, false)
-	g.frameBuffer.SetCellState(ALIVE, posX-1, posY+1, false)
-	g.frameBuffer.SetCellState(ALIVE, posX, posY+2, false)
+func (g *Game) Run(pattern *Pattern) error {
+	g.loadPattern(pattern)
+	g.renderWorld()
 	err := g.frameBuffer.Render()
 	if err != nil {
 		return fmt.Errorf("failed to render initial configuration")
@@ -83,28 +99,40 @@ func (g *Game) Run() error {
 	g.renderer.Present()
 
 	g.running = true
-	tpf := uint64(1000 / g.FPS)
+	tpf := uint64(1000 / g.fps)
 	lastTicks := sdl.GetTicks64()
 	for g.running {
 		g.processInput()
 
-		delta := sdl.GetTicks64() - lastTicks
+		now := sdl.GetTicks64()
+		delta := now - lastTicks
 		if delta < tpf {
+			sdl.Delay(1) // Yield CPU instead of busy-waiting.
 			continue
 		}
-		lastTicks = sdl.GetTicks64()
+		lastTicks = now
 
-		g.update()
+		// Accumulate time for generation updates (decoupled from render FPS).
+		// Cap delta to prevent burst of generations after suspend/minimize.
+		g.genAccumulator += min(delta, 500)
+		genInterval := uint64(1000 / g.genPerSec)
+		for g.playing && g.genAccumulator >= genInterval {
+			g.genAccumulator -= genInterval
+			g.generation++
+			g.RuleB3S23()
+			if g.step {
+				g.step = false
+				g.playing = false
+				g.genAccumulator = 0
+				break
+			}
+		}
+
 		fps := uint32(0)
 		if delta > 0 {
 			fps = uint32(1000 / delta)
 		}
 		g.render(fps)
-
-		if g.step {
-			g.step = false
-			g.playing = false
-		}
 	}
 	return g.shutdown()
 }
@@ -161,69 +189,279 @@ func (g *Game) shutdown() error {
 	return errs
 }
 
+// screenToWorld converts screen pixel coordinates to world cell coordinates.
+func (g *Game) screenToWorld(screenX, screenY int32) (int32, int32) {
+	wx := int32(math.Floor(g.cameraX + float64(screenX)/g.zoom))
+	wy := int32(math.Floor(g.cameraY + float64(screenY)/g.zoom))
+	return wx, wy
+}
+
+// updateTitle updates the window title with grid info.
+func (g *Game) updateTitle() {
+	g.window.SetTitle(fmt.Sprintf("%s [zoom:%.0f]", g.title, g.zoom))
+}
+
+// loadPattern clears the grid and places the given pattern centered at origin.
+func (g *Game) loadPattern(pattern *Pattern) {
+	g.currentPattern = pattern
+	g.cells = make(map[[2]int32]uint32)
+	g.trails = make(map[[2]int32]uint8)
+	g.generation = 0
+	g.genAccumulator = 0
+	g.playing = false
+	g.step = false
+	g.activeTransitionRule = pattern.Rule
+	offsetX := -int32(pattern.Width) / 2
+	offsetY := -int32(pattern.Height) / 2
+	for _, cell := range pattern.Cells {
+		g.cells[[2]int32{offsetX + cell[0], offsetY + cell[1]}] = 1
+	}
+	g.cameraX = -float64(g.width) / (2 * g.zoom)
+	g.cameraY = -float64(g.height) / (2 * g.zoom)
+	g.updateTitle()
+}
+
+// toggleFullscreen switches between windowed and fullscreen desktop mode.
+func (g *Game) toggleFullscreen() {
+	g.fullscreen = !g.fullscreen
+	var flag uint32
+	if g.fullscreen {
+		flag = sdl.WINDOW_FULLSCREEN_DESKTOP
+	}
+	if err := g.window.SetFullscreen(flag); err != nil {
+		slog.Error("failed to toggle fullscreen", "error", err)
+		g.fullscreen = !g.fullscreen
+		return
+	}
+	// Remember what the camera is centered on before resizing.
+	centerX := g.cameraX + float64(g.width)/(2*g.zoom)
+	centerY := g.cameraY + float64(g.height)/(2*g.zoom)
+
+	// Update dimensions to match the new window size.
+	w, h := g.window.GetSize()
+	g.width = w
+	g.height = h - g.infoHeight
+
+	// Recenter camera on the same world point.
+	g.cameraX = centerX - float64(g.width)/(2*g.zoom)
+	g.cameraY = centerY - float64(g.height)/(2*g.zoom)
+
+	// Destroy the old texture and rebuild the framebuffer with new dimensions.
+	if err := g.frameBuffer.texture.Destroy(); err != nil {
+		slog.Error("failed to destroy old texture", "error", err)
+	}
+	buffer, err := NewFrameBuffer(g)
+	if err != nil {
+		slog.Error("failed to recreate framebuffer", "error", err)
+		return
+	}
+	g.frameBuffer = buffer
+}
+
+// applyZoom multiplies the zoom by factor, keeping the center of the screen fixed.
+func (g *Game) applyZoom(factor float64) {
+	centerX := g.cameraX + float64(g.width)/(2*g.zoom)
+	centerY := g.cameraY + float64(g.height)/(2*g.zoom)
+	g.zoom *= factor
+	if g.zoom < 1 {
+		g.zoom = 1
+	}
+	g.cameraX = centerX - float64(g.width)/(2*g.zoom)
+	g.cameraY = centerY - float64(g.height)/(2*g.zoom)
+	g.updateTitle()
+}
+
 // processInput Processes the system events from the event queue.
 func (g *Game) processInput() {
+	panSpeed := 10.0 / g.zoom
 	for nextEvent := sdl.PollEvent(); nextEvent != nil; nextEvent = sdl.PollEvent() {
 		switch event := nextEvent.(type) {
 		case *sdl.QuitEvent:
 			g.running = false
 		case *sdl.KeyboardEvent:
 			if event.Type == sdl.KEYDOWN {
-				if event.Keysym.Sym == sdl.K_ESCAPE {
+				switch event.Keysym.Sym {
+				case sdl.K_ESCAPE:
 					g.running = false
 					return
-				}
-				if event.Keysym.Sym == sdl.K_p {
+				case sdl.K_p, sdl.K_SPACE:
 					g.playing = !g.playing
+					if g.playing {
+						g.genAccumulator = 0
+					}
 					continue
-				}
-				if event.Keysym.Sym == sdl.K_g {
-					g.EnableGrid = !g.EnableGrid
-				}
-				if event.Keysym.Sym == sdl.K_s {
+				case sdl.K_g:
+					g.enableGrid = !g.enableGrid
+				case sdl.K_s:
 					if !g.playing {
 						g.playing = true
 						g.step = true
 					}
 					continue
+				case sdl.K_LEFT:
+					g.cameraX -= panSpeed
+				case sdl.K_RIGHT:
+					g.cameraX += panSpeed
+				case sdl.K_UP:
+					g.cameraY -= panSpeed
+				case sdl.K_DOWN:
+					g.cameraY += panSpeed
+				case sdl.K_EQUALS, sdl.K_PLUS:
+					g.applyZoom(zoomFactor)
+				case sdl.K_MINUS:
+					g.applyZoom(1 / zoomFactor)
+				case sdl.K_RIGHTBRACKET:
+					g.genPerSec = min(g.genPerSec+1, 60)
+				case sdl.K_LEFTBRACKET:
+					g.genPerSec = max(g.genPerSec-1, 1)
+				case sdl.K_f:
+					g.toggleFullscreen()
+				case sdl.K_h:
+					g.heatmapMode = !g.heatmapMode
+				case sdl.K_t:
+					g.trailMode = !g.trailMode
+					if !g.trailMode {
+						g.trails = make(map[[2]int32]uint8)
+					}
+				case sdl.K_c:
+					// Clear the grid.
+					g.cells = make(map[[2]int32]uint32)
+					g.trails = make(map[[2]int32]uint8)
+					g.generation = 0
+					g.genAccumulator = 0
+					g.playing = false
+					g.step = false
+				case sdl.K_r:
+					// Reset to the current pattern.
+					if g.currentPattern != nil {
+						g.loadPattern(g.currentPattern)
+					}
+				case sdl.K_n:
+					g.catalogIndex = (g.catalogIndex + 1) % len(catalog)
+					entry := &catalog[g.catalogIndex]
+					p, err := LoadCatalogEntry(entry)
+					if err != nil {
+						slog.Error("failed to load catalog pattern", "name", entry.Name, "error", err)
+						continue
+					}
+					g.loadPattern(p)
 				}
 			}
 		case *sdl.MouseButtonEvent:
-			if event.Type == sdl.MOUSEBUTTONDOWN {
-				g.frameBuffer.ToggleCellState(event.X, event.Y, false)
-				g.leftClickPressed = true
-			} else {
-				g.leftClickPressed = false
+			switch event.Button {
+			case sdl.BUTTON_LEFT:
+				if event.Type == sdl.MOUSEBUTTONDOWN {
+					wx, wy := g.screenToWorld(event.X, event.Y)
+					pos := [2]int32{wx, wy}
+					if g.cells[pos] > 0 {
+						delete(g.cells, pos)
+					} else {
+						g.cells[pos] = 1
+					}
+					g.leftClickPressed = true
+				} else {
+					g.leftClickPressed = false
+				}
+			case sdl.BUTTON_RIGHT:
+				g.rightClickPressed = event.Type == sdl.MOUSEBUTTONDOWN
 			}
 		case *sdl.MouseMotionEvent:
 			if g.leftClickPressed {
-				g.frameBuffer.ToggleCellState(event.X, event.Y, false)
+				wx, wy := g.screenToWorld(event.X, event.Y)
+				g.cells[[2]int32{wx, wy}] = 1
+			}
+			if g.rightClickPressed {
+				g.cameraX -= float64(event.XRel) / g.zoom
+				g.cameraY -= float64(event.YRel) / g.zoom
+			}
+		case *sdl.MouseWheelEvent:
+			if event.Y > 0 {
+				g.applyZoom(zoomFactor)
+			} else if event.Y < 0 {
+				g.applyZoom(1 / zoomFactor)
 			}
 		}
 	}
 }
 
-// update game state.
-func (g *Game) update() {
-	if !g.playing {
-		return
+// ageToColor returns an RGBA8888 color for a cell based on its age.
+// New cells are bright green, aging through yellow, orange, red, then blue/purple.
+func ageToColor(age uint32) uint32 {
+	switch {
+	case age <= 5:
+		// Bright green → yellow (green stays 255, red ramps up).
+		r := min(age*50, 255)
+		return (r << 24) | (0xFF << 16) | (0x00 << 8) | 0xFF
+	case age <= 15:
+		// Yellow → orange → red (green ramps down).
+		g := 255 - min((age-5)*25, 255)
+		return (0xFF << 24) | (g << 16) | (0x00 << 8) | 0xFF
+	case age <= 30:
+		// Red → purple (blue ramps up).
+		b := min((age-15)*17, 255)
+		return (0xFF << 24) | (0x00 << 16) | (b << 8) | 0xFF
+	default:
+		// Deep blue/purple for ancient cells.
+		return (0x80 << 24) | (0x00 << 16) | (0xFF << 8) | 0xFF
 	}
-	g.generation++
-	for y := int32(0); y < g.height/g.cellSize; y++ {
-		for x := int32(0); x < g.width/g.cellSize; x++ {
-			g.RuleB3S23(x, y)
+}
+
+// renderWorld draws the current cell state from the infinite grid into the pixel buffer.
+func (g *Game) renderWorld() {
+	// Clear the current buffer.
+	g.frameBuffer.clearCurrent(g.cellDeadColor)
+
+	cellPx := max(int32(g.zoom), 1)
+
+	// Render fade trails (behind alive cells).
+	if g.trailMode {
+		for pos, remaining := range g.trails {
+			if g.cells[pos] > 0 {
+				// Cell is alive again, remove trail.
+				delete(g.trails, pos)
+				continue
+			}
+			screenX := int32(float64(pos[0])*g.zoom - g.cameraX*g.zoom)
+			screenY := int32(float64(pos[1])*g.zoom - g.cameraY*g.zoom)
+			if screenX+cellPx < 0 || screenX >= g.width || screenY+cellPx < 0 || screenY >= g.height {
+				continue
+			}
+			brightness := uint32(remaining) * 25 // 8*25 = 200 max brightness.
+			trailColor := (brightness << 24) | (brightness << 16) | (brightness << 8) | 0xFF
+			g.frameBuffer.DrawRect(screenX, screenY, cellPx, cellPx, trailColor)
+			g.trails[pos] = remaining - 1
+			if remaining <= 1 {
+				delete(g.trails, pos)
+			}
 		}
+	}
+
+	for pos, age := range g.cells {
+		// World pos -> screen pixel.
+		screenX := int32(float64(pos[0])*g.zoom - g.cameraX*g.zoom)
+		screenY := int32(float64(pos[1])*g.zoom - g.cameraY*g.zoom)
+		// Cull off-screen cells.
+		if screenX+cellPx < 0 || screenX >= g.width || screenY+cellPx < 0 || screenY >= g.height {
+			continue
+		}
+		color := g.cellAliveColor
+		if g.heatmapMode {
+			color = ageToColor(age)
+		}
+		g.frameBuffer.DrawRect(screenX, screenY, cellPx, cellPx, color)
 	}
 }
 
 // render the game state to screen.
 func (g *Game) render(fps uint32) {
+	g.renderWorld()
+
 	err := g.frameBuffer.Render()
 	if err != nil {
 		slog.Error("failed to render frame buffer", "error", err)
 	}
 
-	if g.EnableGrid {
+	if g.enableGrid {
 		err = g.frameBuffer.DrawGrid()
 		if err != nil {
 			slog.Error("failed to draw grid", "error", err)
@@ -268,20 +506,32 @@ func (g *Game) renderInfoSection(fps uint32) error {
 		pausePlay = "Play"
 	}
 	grid := "Off"
-	if g.EnableGrid {
+	if g.enableGrid {
 		grid = "On"
 	}
 	infoTextColor := sdl.Color{R: 200, G: 200, B: 200, A: 255}
 
 	// Shortcuts.
-	shortcuts := fmt.Sprintf("Exit: ESC | %s: P | Step: S | Grid(%s): G", pausePlay, grid)
+	heatmap := "Off"
+	if g.heatmapMode {
+		heatmap = "On"
+	}
+	trail := "Off"
+	if g.trailMode {
+		trail = "On"
+	}
+	shortcuts := fmt.Sprintf("Exit: ESC | %s: P | Step: S | Grid(%s): G | Heatmap(%s): H | Trail(%s): T | Speed: [/] | Clear: C | Reset: R | Next: N", pausePlay, grid, heatmap, trail)
 	err = g.drawText(shortcuts, 10, g.height+5, infoTextColor)
 	if err != nil {
 		return err
 	}
 
 	// Generation/Step and FPS.
-	stats := fmt.Sprintf("Gen: %d | FPS: %d | Click on any cell to toggle its state", g.generation, fps)
+	patternName := "Custom"
+	if g.catalogIndex >= 0 {
+		patternName = catalog[g.catalogIndex].Name
+	}
+	stats := fmt.Sprintf("%s | %s | Gen: %d | Speed: %d gen/s | FPS: %d | Click: toggle | Right-drag: pan", patternName, g.activeTransitionRule, g.generation, g.genPerSec, fps)
 	err = g.drawText(stats, 10, g.height+22, infoTextColor)
 	if err != nil {
 		return err
