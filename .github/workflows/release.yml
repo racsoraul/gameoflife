@@ -15,12 +15,8 @@ jobs:
         include:
           - os: macos-latest
             artifact: gameoflife-darwin-arm64
-          - os: macos-15-intel
-            artifact: gameoflife-darwin-amd64
           - os: ubuntu-latest
             artifact: gameoflife-linux-amd64
-          - os: windows-latest
-            artifact: gameoflife-windows-amd64.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -37,31 +33,10 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libsdl2-dev libsdl2-ttf-dev
 
-      # Windows: MSYS2 provides GCC for CGO. The build uses -tags static
-      # which links against go-sdl2's bundled static libraries, so SDL2
-      # packages are not needed — only the compiler.
-      - name: Setup MSYS2 (Windows)
-        if: runner.os == 'Windows'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          path-type: inherit
-          update: false
-          install: mingw-w64-x86_64-gcc
-
-      - name: Build (Unix)
-        if: runner.os != 'Windows'
+      - name: Build
         env:
           CGO_ENABLED: "1"
         run: go build -o ${{ matrix.artifact }} ./
-
-      # Static build produces a standalone .exe with no DLL dependencies.
-      - name: Build (Windows)
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
-        env:
-          CGO_ENABLED: "1"
-        run: go build -tags static -ldflags "-s -w" -o ${{ matrix.artifact }} ./
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
