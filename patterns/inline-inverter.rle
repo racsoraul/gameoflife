@@ -1,0 +1,10 @@
+#N Inline Inverter (NOT Gate)
+#C Inverts a period-30 glider stream. A Gosper glider gun fires a
+#C constant stream; incoming signal gliders annihilate gun gliders
+#C (output = 0), while gaps let gun gliders through (output = 1).
+#C This is the fundamental building block for Boolean logic in GoL.
+#C Input: glider stream from one direction.
+#C Output: inverted glider stream.
+x = 36, y = 20, rule = B3/S23
+9bo$7bobo$8b2o5$16bo$17bo$15b3o2$23bobo$21bo3bo$13bo7bo$12b4o4bo4bo8b
+2o$11b2obobo4bo12b2o$2o8b3obo2bo3bo3bo$2o9b2obobo6bobo$12b4o$13bo!

@@ -1,0 +1,12 @@
+#N Glider Duplicator (Fanout)
+#C Splits one input glider stream into two output streams traveling in
+#C different directions. Essential for digital logic — any time a signal
+#C needs to feed into multiple gates, it must be duplicated first.
+#C Built from two Gosper glider guns arranged to produce copies.
+#C Input: NW. Outputs: NE and SE.
+x = 50, y = 47, rule = B3/S23
+44b2o$44b2o9$41b2obob2o2$41bo5bo2$42b2ob2o$44bo3$38b2o6bo$37bobo5bobo$
+12bo26bo4bo3bo$13bo30b5o$11b3o29b2o3b2o$44b5o$45b3o$46bo$24b2o4b3o$24b
+2o6bo$31bo5$23b2o$22bobo21b2o$24bo21b2o$13bo$12b4o$11b2obobo6bobo$2o8b
+3obo2bo3bo3bo$2o9b2obobo4bo$12b4o4bo4bo$13bo7bo$21bo3bo6b2o$23bobo6bob
+o$34bo$34b2o!

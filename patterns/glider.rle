@@ -1,0 +1,7 @@
+#N Glider
+#C The smallest and most common spaceship. Moves diagonally at c/4 speed.
+#C In digital logic circuits, the presence or absence of a glider represents
+#C a 1-bit or 0-bit signal traveling along a "wire."
+#C Discovered by Richard K. Guy in 1970.
+x = 3, y = 3, rule = B3/S23
+bo$2bo$3o!

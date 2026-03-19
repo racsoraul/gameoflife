@@ -1,0 +1,7 @@
+#N Eater 1 (Fishhook)
+#C A 7-cell still life that absorbs gliders without being destroyed.
+#C Recovers in 4 generations. In digital logic circuits, eaters terminate
+#C unwanted glider streams — they act as signal sinks / ground.
+#C The smallest known eater.
+x = 4, y = 4, rule = B3/S23
+2o$obo$2bo$2b2o!

@@ -1,0 +1,10 @@
+#N Snark
+#C The smallest known stable glider reflector. Redirects a glider 90
+#C degrees. Recovery time: 43 generations between consecutive gliders.
+#C Unlike the Buckaroo, the Snark is a still life (period 1) — it does
+#C not oscillate and works with any glider timing >= 43 generations apart.
+#C In digital logic, stable reflectors enable compact wire routing.
+#C Discovered by Mike Playle on April 26, 2013.
+x = 17, y = 23, rule = B3/S23
+6b2o3b2o$6b2o2bob3o$10bo4bo$6b4ob2o2bo$6bo2bobobob2o$9bobobobo$10b2obo
+bo$14bo2$2o$bo7b2o$bobo5b2o$2b2o7$12b2o$3b2o7bo$2bobo8b3o$4bo10bo!

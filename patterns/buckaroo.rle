@@ -1,0 +1,10 @@
+#N Buckaroo
+#C A period-30 oscillating glider reflector. Redirects a glider stream
+#C 90 degrees. Based on a queen bee shuttle stabilized by an eater.
+#C In digital logic, reflectors act as wire bends — they change the
+#C direction of a signal without losing it.
+#C Discovered by David Buckingham in the 1970s.
+#C Colour-preserving. Feed it a glider stream timed to period-30.
+x = 25, y = 19, rule = B3/S23
+7bo$5bobo$4bobo$3bo2bo12b2o$4bobo12bo$5bobo9b3o$7bo9bo2$2o$2o3$14b2o$
+14b2o5$23b2o$23b2o!
