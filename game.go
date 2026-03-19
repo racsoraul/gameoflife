@@ -538,18 +538,17 @@ func (g *Game) renderInfoSection(fps uint32) error {
 	if g.trailMode {
 		trail = "On"
 	}
-	shortcuts := fmt.Sprintf("Exit: ESC | %s: P/Space | Step: S | Grid(%s): G | Heatmap(%s): H | Trail(%s): T | Fullscreen: F | Speed: [/] | Clear: C | Reset: R | Next: N", pausePlay, grid, heatmap, trail)
+	shortcuts := fmt.Sprintf("%s: P/Space | Step: S | Grid(%s): G | Heatmap(%s): H | Trail(%s): T | Speed: [/] | Next: N", pausePlay, grid, heatmap, trail)
 	err = g.drawText(shortcuts, 10, g.height+5, infoTextColor)
 	if err != nil {
 		return err
 	}
 
-	// Generation/Step and FPS.
 	patternName := "Custom"
 	if g.catalogIndex >= 0 {
 		patternName = catalog[g.catalogIndex].Name
 	}
-	stats := fmt.Sprintf("%s | %s | Gen: %d | Speed: %d gen/s | FPS: %d | Click: toggle | Right-drag: pan", patternName, g.activeTransitionRule, g.generation, g.genPerSec, fps)
+	stats := fmt.Sprintf("%s | Gen: %d | Speed: %d gen/s | FPS: %d | Fullscreen: F | Clear: C | Reset: R | %s", g.activeTransitionRule, g.generation, g.genPerSec, fps, patternName)
 	err = g.drawText(stats, 10, g.height+22, infoTextColor)
 	if err != nil {
 		return err
