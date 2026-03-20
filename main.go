@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"path/filepath"
@@ -10,11 +11,15 @@ import (
 )
 
 func main() {
+	width := flag.Int("width", 960, "window width in pixels")
+	height := flag.Int("height", 540, "window height in pixels")
+	flag.Parse()
+
 	var pattern *Pattern
 	var err error
 
-	if len(os.Args) > 1 {
-		path := os.Args[1]
+	if flag.NArg() > 0 {
+		path := flag.Arg(0)
 		ext := strings.ToLower(filepath.Ext(path))
 		switch ext {
 		case ".mc":
@@ -33,12 +38,12 @@ func main() {
 		}
 	}
 
-	gameOfLife, err := NewGame("Conway's Game of Life", 800, 800, 10)
+	gameOfLife, err := NewGame("Conway's Game of Life", int32(*width), int32(*height), 10)
 	if err != nil {
 		log.Fatal(err)
 	}
 	// If using a default catalog pattern, sync the catalog index.
-	if len(os.Args) <= 1 {
+	if flag.NArg() == 0 {
 		gameOfLife.catalogIndex = 0
 	}
 	if err = gameOfLife.Run(pattern); err != nil {
