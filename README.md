@@ -3,7 +3,7 @@
 An interactive implementation of [Conway's Game of Life](https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life) built in
 Go with SDL2.
 
-<video src="assets/demo_cgol_480p.mp4" controls width="800"></video>
+https://github.com/user-attachments/assets/d1ff7345-0b97-4a6e-8a93-6cc05ca48947
 
 ## Quick Start
 
